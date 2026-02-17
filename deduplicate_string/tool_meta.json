@@ -1,0 +1,7 @@
+{
+    "name_zh": "字符串去重工具",
+    "icon": "icon.svg",
+    "icon_padding": 8,
+    "icon_color": "#ffffff",
+    "description": "快速去除重复字符串"
+}

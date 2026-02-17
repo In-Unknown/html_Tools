@@ -1,0 +1,468 @@
+<!DOCTYPE html>
+<html lang="zh">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>4D超立方体 | 清晰可视化</title>
+    <style>
+        * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+        }
+        
+        body {
+            background: linear-gradient(135deg, #0c0c0c 0%, #1a1a2e 100%);
+            color: #ffffff;
+            font-family: 'Segoe UI', 'Microsoft YaHei', sans-serif;
+            overflow: hidden;
+            height: 100vh;
+        }
+        
+        canvas {
+            display: block;
+        }
+        
+        .ui-container {
+            position: absolute;
+            top: 20px;
+            left: 20px;
+            background: rgba(10, 10, 20, 0.85);
+            backdrop-filter: blur(10px);
+            border-radius: 12px;
+            padding: 20px;
+            max-width: 320px;
+            box-shadow: 0 8px 32px rgba(0, 0, 0, 0.4);
+            border: 1px solid rgba(100, 150, 255, 0.15);
+            z-index: 100;
+        }
+        
+        h1 {
+            font-size: 1.4rem;
+            margin-bottom: 15px;
+            color: #6cb8ff;
+            text-shadow: 0 0 10px rgba(108, 184, 255, 0.5);
+            font-weight: 600;
+        }
+        
+        .control-section {
+            margin-bottom: 15px;
+        }
+        
+        h2 {
+            font-size: 1rem;
+            color: #a0d2ff;
+            margin-bottom: 8px;
+            font-weight: 500;
+            display: flex;
+            align-items: center;
+            gap: 8px;
+        }
+        
+        h2::before {
+            content: "";
+            display: block;
+            width: 6px;
+            height: 6px;
+            background: #6cb8ff;
+            border-radius: 50%;
+        }
+        
+        .key-group {
+            display: grid;
+            grid-template-columns: repeat(2, 1fr);
+            gap: 8px;
+        }
+        
+        .key-item {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            padding: 6px 10px;
+            background: rgba(30, 40, 60, 0.6);
+            border-radius: 6px;
+            border: 1px solid rgba(100, 150, 255, 0.2);
+            transition: all 0.2s ease;
+        }
+        
+        .key-item:hover {
+            background: rgba(40, 60, 100, 0.6);
+            border-color: rgba(108, 184, 255, 0.4);
+        }
+        
+        .key-name {
+            font-weight: 600;
+            color: #ffcc66;
+            font-family: 'Courier New', monospace;
+            padding: 2px 8px;
+            background: rgba(255, 204, 102, 0.1);
+            border-radius: 4px;
+            border: 1px solid rgba(255, 204, 102, 0.3);
+            min-width: 36px;
+            text-align: center;
+        }
+        
+        .key-desc {
+            color: #cccccc;
+            font-size: 0.9rem;
+        }
+        
+        .highlight {
+            background: rgba(108, 184, 255, 0.2);
+            padding: 10px;
+            border-radius: 8px;
+            margin-top: 10px;
+            border-left: 3px solid #6cb8ff;
+        }
+        
+        .highlight p {
+            margin: 5px 0;
+            font-size: 0.9rem;
+            color: #a0d2ff;
+        }
+        
+        .instructions {
+            color: #999;
+            font-size: 0.85rem;
+            margin-top: 15px;
+            line-height: 1.4;
+        }
+        
+        .dimension-label {
+            position: absolute;
+            top: 20px;
+            right: 20px;
+            background: rgba(10, 10, 20, 0.85);
+            backdrop-filter: blur(10px);
+            border-radius: 12px;
+            padding: 15px;
+            text-align: center;
+            border: 1px solid rgba(100, 150, 255, 0.15);
+            min-width: 180px;
+        }
+        
+        .dimension-label h3 {
+            color: #6cb8ff;
+            margin-bottom: 8px;
+            font-size: 1rem;
+        }
+        
+        .dimension-value {
+            font-size: 1.8rem;
+            font-weight: 700;
+            color: #ffcc66;
+            text-shadow: 0 0 8px rgba(255, 204, 102, 0.5);
+            font-family: 'Courier New', monospace;
+        }
+        
+        .dimension-value span {
+            font-size: 1.2rem;
+            color: #a0d2ff;
+        }
+        
+        .projection-info {
+            position: absolute;
+            bottom: 20px;
+            left: 50%;
+            transform: translateX(-50%);
+            background: rgba(10, 10, 20, 0.85);
+            backdrop-filter: blur(10px);
+            border-radius: 12px;
+            padding: 12px 20px;
+            border: 1px solid rgba(100, 150, 255, 0.15);
+            font-size: 0.9rem;
+            color: #cccccc;
+            text-align: center;
+        }
+
+        @media (max-width: 768px) {
+            .ui-container {
+                max-width: 280px;
+                padding: 15px;
+            }
+            .dimension-label {
+                top: 10px;
+                right: 10px;
+                padding: 10px;
+                min-width: 150px;
+            }
+        }
+    </style>
+    <script src="/debug_comm.js"></script>
+</head>
+<body>
+    <div class="ui-container">
+        <h1>4D超立方体控制器</h1>
+        
+        <div class="control-section">
+            <h2>3D 平面旋转</h2>
+            <div class="key-group">
+                <div class="key-item">
+                    <span class="key-name">Q/W</span>
+                    <span class="key-desc">XY 平面</span>
+                </div>
+                <div class="key-item">
+                    <span class="key-name">A/S</span>
+                    <span class="key-desc">XZ 平面</span>
+                </div>
+                <div class="key-item">
+                    <span class="key-name">Z/X</span>
+                    <span class="key-desc">YZ 平面</span>
+                </div>
+            </div>
+        </div>
+        
+        <div class="control-section">
+            <h2>4D 平面旋转</h2>
+            <div class="key-group">
+                <div class="key-item">
+                    <span class="key-name">E/R</span>
+                    <span class="key-desc">XW 平面</span>
+                </div>
+                <div class="key-item">
+                    <span class="key-name">D/F</span>
+                    <span class="key-desc">YW 平面</span>
+                </div>
+                <div class="key-item">
+                    <span class="key-name">C/V</span>
+                    <span class="key-desc">ZW 平面</span>
+                </div>
+            </div>
+        </div>
+        
+        <div class="highlight">
+            <p>按住 <strong>SHIFT</strong> + 旋转键：每次旋转 15°</p>
+            <p>按住 <strong>SPACE</strong>：重置所有旋转</p>
+            <p>鼠标：旋转 3D 视角</p>
+            <p>滚轮：缩放视图</p>
+        </div>
+        
+        <div class="instructions">
+            每个颜色代表超立方体的一个 3D 胞（8个立方体组成）。
+        </div>
+    </div>
+    
+    <div class="dimension-label">
+        <h3>当前维度</h3>
+        <div class="dimension-value">4<span>D</span></div>
+    </div>
+    
+    <div class="projection-info">
+        四维超立方体 (Tesseract) → 三维空间投影
+    </div>
+
+    <script type="importmap">
+        {
+            "imports": {
+                "three": "https://unpkg.com/three@0.165.0/build/three.module.js",
+                "three/addons/": "https://unpkg.com/three@0.165.0/examples/jsm/"
+            }
+        }
+    </script>
+
+    <script type="module">
+        import * as THREE from 'three';
+        import { OrbitControls } from 'three/addons/controls/OrbitControls.js';
+
+        // === 初始化 ===
+        const scene = new THREE.Scene();
+        const camera = new THREE.PerspectiveCamera(60, window.innerWidth / window.innerHeight, 0.1, 1000);
+        camera.position.set(4, 4, 6);
+        
+        const renderer = new THREE.WebGLRenderer({ 
+            antialias: true,
+            alpha: true,
+            powerPreference: "high-performance"
+        });
+        renderer.setSize(window.innerWidth, window.innerHeight);
+        renderer.setPixelRatio(Math.min(window.devicePixelRatio, 2));
+        renderer.setClearColor(0x000000, 0);
+        document.body.appendChild(renderer.domElement);
+        
+        const controls = new OrbitControls(camera, renderer.domElement);
+        controls.enableDamping = true;
+        controls.dampingFactor = 0.05;
+        
+        const ambientLight = new THREE.AmbientLight(0xffffff, 0.6);
+        scene.add(ambientLight);
+        
+        const directionalLight = new THREE.DirectionalLight(0xffffff, 0.8);
+        directionalLight.position.set(10, 20, 15);
+        scene.add(directionalLight);
+        
+        // === 四维超立方体数据定义 ===
+        const vertices4D = [];
+        for (let i = 0; i < 16; i++) {
+            const x = (i & 1) ? 1 : -1;
+            const y = (i & 2) ? 1 : -1;
+            const z = (i & 4) ? 1 : -1;
+            const w = (i & 8) ? 1 : -1;
+            vertices4D.push(new THREE.Vector4(x, y, z, w));
+        }
+        
+        const cells = [
+            { id: 'w+', coord: 'w', value: 1, color: 0xFF3B30, center: new THREE.Vector4(0, 0, 0, 1) },
+            { id: 'w-', coord: 'w', value: -1, color: 0x34C759, center: new THREE.Vector4(0, 0, 0, -1) },
+            { id: 'x+', coord: 'x', value: 1, color: 0x007AFF, center: new THREE.Vector4(1, 0, 0, 0) },
+            { id: 'x-', coord: 'x', value: -1, color: 0xFFCC00, center: new THREE.Vector4(-1, 0, 0, 0) },
+            { id: 'y+', coord: 'y', value: 1, color: 0xAF52DE, center: new THREE.Vector4(0, 1, 0, 0) },
+            { id: 'y-', coord: 'y', value: -1, color: 0x5AC8FA, center: new THREE.Vector4(0, -1, 0, 0) },
+            { id: 'z+', coord: 'z', value: 1, color: 0xFF9500, center: new THREE.Vector4(0, 0, 1, 0) },
+            { id: 'z-', coord: 'z', value: -1, color: 0x8E6C3A, center: new THREE.Vector4(0, 0, -1, 0) }
+        ];
+        
+        const cubeEdges = [
+            [0,1], [0,2], [0,4], [1,3], [1,5], [2,3],
+            [2,6], [3,7], [4,5], [4,6], [5,7], [6,7]
+        ];
+        
+        const tesseractGroup = new THREE.Group();
+        scene.add(tesseractGroup);
+        
+        const cellBorders = [];
+        const cellVertexMaps = [];
+        const borderScale = 0.98; 
+
+        // === 创建胞 (8个立方体) ===
+        cells.forEach((cell, cellIndex) => {
+            const vertexIndices = [];
+            vertices4D.forEach((v, idx) => {
+                if (v[cell.coord] === cell.value) vertexIndices.push(idx);
+            });
+            cellVertexMaps[cellIndex] = vertexIndices;
+            
+            const geometry = new THREE.BufferGeometry();
+            const positions = new Float32Array(12 * 2 * 3);
+            geometry.setAttribute('position', new THREE.BufferAttribute(positions, 3));
+            
+            const material = new THREE.LineBasicMaterial({
+                color: cell.color,
+                linewidth: 2,
+                transparent: true,
+                opacity: 0.8
+            });
+            const border = new THREE.LineSegments(geometry, material);
+            tesseractGroup.add(border);
+            cellBorders[cellIndex] = border;
+        });
+        
+        // === 顶点小球 ===
+        const vertexSpheres = [];
+        const vertexGeometry = new THREE.SphereGeometry(0.05, 12, 12);
+        const vertexMaterial = new THREE.MeshBasicMaterial({ color: 0xffffff });
+        
+        vertices4D.forEach((v, i) => {
+            const sphere = new THREE.Mesh(vertexGeometry, vertexMaterial);
+            tesseractGroup.add(sphere);
+            vertexSpheres[i] = sphere;
+        });
+        
+        // === 旋转逻辑 ===
+        const rotation = { xy: 0, xz: 0, yz: 0, xw: 0, yw: 0, zw: 0 };
+        const keyState = {};
+        const rotationSpeed = 0.025;
+        const stepAngle = Math.PI / 12;
+
+        window.addEventListener('keydown', (e) => {
+            const key = e.key.toLowerCase();
+            keyState[key] = true;
+            keyState.shift = e.shiftKey;
+            if (key === ' ') e.preventDefault();
+        });
+        window.addEventListener('keyup', (e) => {
+            const key = e.key.toLowerCase();
+            keyState[key] = false;
+            keyState.shift = e.shiftKey;
+        });
+
+        function rotate4D(point) {
+            let { x, y, z, w } = point;
+            const r = rotation;
+
+            // 平面旋转矩阵运算
+            if(r.xy) { let c=Math.cos(r.xy), s=Math.sin(r.xy); [x,y]=[x*c-y*s, x*s+y*c]; }
+            if(r.xz) { let c=Math.cos(r.xz), s=Math.sin(r.xz); [x,z]=[x*c-z*s, x*s+z*c]; }
+            if(r.yz) { let c=Math.cos(r.yz), s=Math.sin(r.yz); [y,z]=[y*c-z*s, y*s+z*c]; }
+            if(r.xw) { let c=Math.cos(r.xw), s=Math.sin(r.xw); [x,w]=[x*c-w*s, x*s+w*c]; }
+            if(r.yw) { let c=Math.cos(r.yw), s=Math.sin(r.yw); [y,w]=[y*c-w*s, y*s+w*c]; }
+            if(r.zw) { let c=Math.cos(r.zw), s=Math.sin(r.zw); [z,w]=[z*c-w*s, z*s+w*c]; }
+            
+            return new THREE.Vector4(x, y, z, w);
+        }
+
+        const projectionDistance = 2.5;
+        function project4DTo3D(p4) {
+            const scale = 3.5;
+            const wPrime = 1 / (projectionDistance - p4.w);
+            return new THREE.Vector3(p4.x * wPrime * scale, p4.y * wPrime * scale, p4.z * wPrime * scale);
+        }
+
+        function updateInput() {
+            const isStep = keyState.shift;
+            const updateAxis = (pos, neg, axis) => {
+                if (!isStep) {
+                    if (keyState[pos]) rotation[axis] += rotationSpeed;
+                    if (keyState[neg]) rotation[axis] -= rotationSpeed;
+                } else {
+                    if (keyState[pos] && !keyState[pos+'_p']) rotation[axis] += stepAngle;
+                    if (keyState[neg] && !keyState[neg+'_p']) rotation[axis] -= stepAngle;
+                }
+            };
+            
+            updateAxis('q', 'w', 'xy');
+            updateAxis('a', 's', 'xz');
+            updateAxis('z', 'x', 'yz');
+            updateAxis('e', 'r', 'xw');
+            updateAxis('d', 'f', 'yw');
+            updateAxis('c', 'v', 'zw');
+
+            if (keyState[' ']) Object.keys(rotation).forEach(k => rotation[k] = 0);
+            ['q','w','a','s','z','x','e','r','d','f','c','v'].forEach(k => keyState[k+'_p'] = keyState[k]);
+        }
+
+        function animate() {
+            requestAnimationFrame(animate);
+            updateInput();
+            
+            const rotatedVertices = vertices4D.map(v => rotate4D(v));
+
+            // 更新顶点
+            rotatedVertices.forEach((v, i) => {
+                vertexSpheres[i].position.copy(project4DTo3D(v));
+            });
+
+            // 更新胞边框
+            cells.forEach((cell, idx) => {
+                const border = cellBorders[idx];
+                const vIndices = cellVertexMaps[idx];
+                const cellCenter = rotate4D(cell.center);
+                const positions = border.geometry.attributes.position.array;
+                
+                const projected = vIndices.map(vi => {
+                    const v = rotatedVertices[vi].clone().lerp(cellCenter, 1 - borderScale);
+                    return project4DTo3D(v);
+                });
+
+                let pIdx = 0;
+                cubeEdges.forEach(edge => {
+                    const p1 = projected[edge[0]], p2 = projected[edge[1]];
+                    positions[pIdx++] = p1.x; positions[pIdx++] = p1.y; positions[pIdx++] = p1.z;
+                    positions[pIdx++] = p2.x; positions[pIdx++] = p2.y; positions[pIdx++] = p2.z;
+                });
+                border.geometry.attributes.position.needsUpdate = true;
+            });
+
+            controls.update();
+            renderer.render(scene, camera);
+        }
+
+        window.addEventListener('resize', () => {
+            camera.aspect = window.innerWidth / window.innerHeight;
+            camera.updateProjectionMatrix();
+            renderer.setSize(window.innerWidth, window.innerHeight);
+        });
+
+        animate();
+    </script>
+</body>
+</html>

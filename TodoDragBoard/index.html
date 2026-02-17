@@ -1,0 +1,3042 @@
+﻿﻿<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>自定义拖动排序的面板卡片列表</title>
+    <style>
+        /* 强制显示垂直滚动条，并确保html和body占据整个视窗高度 */
+        html, body {
+            height: 100%; /* 占据整个视窗高度 */
+            margin: 0;
+            overflow: hidden; /* 防止页面整体滚动 */
+        }
+
+        body {
+            font-family: Arial, sans-serif;
+            background-color: #f4f4f4;
+            display: flex;
+            flex-direction: column;
+            box-sizing: border-box;
+            padding: 20px;
+            padding-top: 50px;
+            align-items: center;
+        }
+
+        /* 工作区管理头部样式 */
+        .workspace-header {
+            width: 100%;
+            max-width: 1600px;
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            margin-bottom: 20px;
+            padding: 10px 20px;
+            background-color: #fff;
+            border-radius: 10px;
+            box-shadow: 0 2px 5px rgba(0, 0, 0, 0.1);
+            box-sizing: border-box;
+        }
+
+        .workspace-selector {
+            display: flex;
+            align-items: center;
+            gap: 10px;
+        }
+
+        .workspace-select {
+            padding: 8px 12px;
+            border: 1px solid #ddd;
+            border-radius: 5px;
+            background-color: #fff;
+            font-size: 14px;
+            cursor: pointer;
+        }
+
+        .workspace-actions {
+            display: flex;
+            gap: 10px;
+        }
+
+        .workspace-btn {
+            padding: 8px 15px;
+            border: none;
+            border-radius: 5px;
+            background-color: #007bff;
+            color: white;
+            font-size: 14px;
+            cursor: pointer;
+            transition: background-color 0.2s ease;
+        }
+
+        .workspace-btn:hover {
+            background-color: #0056b3;
+        }
+
+        .workspace-btn.delete {
+            background-color: #dc3545;
+        }
+
+        .workspace-btn.delete:hover {
+            background-color: #c82333;
+        }
+
+        /* 新增：有序模式切换按钮样式 */
+        .order-mode-toggle {
+            display: flex;
+            align-items: center;
+            gap: 8px;
+            margin-left: 20px;
+            padding: 8px 15px;
+            background-color: #f8f9fa;
+            border-radius: 5px;
+            border: 1px solid #ddd;
+            cursor: pointer;
+            transition: all 0.2s ease;
+        }
+
+        .order-mode-toggle:hover {
+            background-color: #e9ecef;
+        }
+
+        .order-mode-toggle.active {
+            background-color: #e7f3ff;
+            border-color: #007bff;
+        }
+
+        .order-mode-indicator {
+            width: 12px;
+            height: 12px;
+            border-radius: 50%;
+            background-color: #6c757d;
+        }
+
+        .order-mode-toggle.active .order-mode-indicator {
+            background-color: #007bff;
+        }
+
+        .order-mode-text {
+            font-size: 14px;
+            color: #495057;
+        }
+
+        .main-container {
+            display: flex;
+            gap: 30px;
+            /* 关键：拉伸对齐，确保所有模块高度一致 */
+            align-items: stretch;
+            /* 强制不换行 */
+            flex-wrap: nowrap;
+            width: 100%;
+            max-width: 1600px;
+            /* 减去头部高度，确保刚好占满屏幕 */
+            height: calc(100vh - 140px);
+            box-sizing: border-box;
+        }
+
+        .panel, .archive-module, .details-panel {
+            --panel-bg-color: #ffffff;
+            background-color: var(--panel-bg-color);
+            border-radius: 10px;
+            box-shadow: 0 6px 12px rgba(0, 0, 0, 0.15);
+            /* 这里的 padding 设为 0，具体内边距交给各自的内部样式控制 */
+            padding: 0;
+            box-sizing: border-box;
+            display: flex;
+            flex-direction: column;
+            
+            /* =========== 核心修改开始 =========== */
+            /* 1. 均分宽度：所有模块默认为 1 份 */
+            flex: 1; 
+            
+            /* 2. 修复 Bug 的关键：允许容器压缩到比内容更小 */
+            /* 如果没有这行，富文本的长文字会强行撑大容器 */
+            min-width: 0;
+            
+            /* 3. 确保高度填满 */
+            height: 100%;
+            
+            /* 4. 宽度过渡动画 */
+            transition: flex 0.3s cubic-bezier(0.25, 1, 0.5, 1), width 0.3s ease;
+            /* =========== 核心修改结束 =========== */
+        }
+
+        /* 详细信息面板 */
+        .details-panel {
+            /* 移除之前所有的 max-width, min-width 设置 */
+            /* 恢复内边距 */
+            padding: 30px;
+            overflow-y: hidden; /* 外部不滚动，内部滚动 */
+        }
+
+        /* --- 核心修改：详细信息模块容器样式 --- */
+        .details-container {
+            flex-grow: 1;
+            display: flex;
+            flex-direction: column;
+            gap: 5px; /* 间距减少 */
+            overflow-y: auto;
+        }
+
+        /* 详细信息内容模块的包装器 */
+        .details-content-wrapper {
+            /* --- 核心修改：卡片风格应用到这个容器 --- */
+            background-color: #f9f9f9;
+            border: 2px solid #ddd;
+            border-radius: 8px;
+            padding: 15px;
+            box-sizing: border-box;
+            box-shadow: 0 2px 5px rgba(0, 0, 0, 0.1);
+            display: flex;
+            flex-direction: column;
+            gap: 10px;
+            flex-grow: 1;
+            overflow-y: auto;
+        }
+            /* --- 鼠标悬停时添加描边 --- */
+            .details-content-wrapper:hover {
+                border-color: #87ceeb;
+                box-shadow: 0 6px 12px rgba(0, 0, 0, 0.15);
+            }
+
+        /* 详细信息模块的主标题 */
+        .details-panel > h1 {
+            color: #2c3e50;
+            text-align: center;
+            margin: 0; /* 上下外边距都为0 */
+        }
+        /* --- 额外优化: details-title-wrapper 也左对齐，保证一致性 --- */
+        .details-title-wrapper {
+            text-align: left; /* 保持左对齐 */
+            margin: 0;
+            padding: 0;
+        }
+        /* --- 单独设置标签的尺寸间距为0 --- */
+        #details-title {
+            font-size: 1.6em;
+            text-align: left;
+            margin: 0;
+        }
+        /* 待执行模块：固定高度可滚动 */
+        .panel {
+            /* 移除之前所有的 width: 50% 设置 */
+            padding: 30px;
+            overflow-y: auto;
+        }
+
+/* 已归档模块 */
+        .archive-module {
+            /* 移除之前所有的 max-width, width 设置 */
+            overflow: hidden;
+            /* 确保背景色存在，防止收起时变透明 */
+            background-color: #fff;
+        }
+
+/* 新增：归档模块收起状态 - 变为固定侧边栏 */
+/* 归档模块收起状态 */
+        .archive-module.collapsed {
+            flex: 0 0 60px;
+            width: 60px;
+            min-width: 60px;
+            /* 确保背景和阴影不丢失 */
+            background-color: #ffffff;
+        }
+
+            /* 收起时隐藏卡片列表内容 */
+            .archive-module.collapsed .archive-content {
+                display: none;
+            }
+            
+            /* 收起时调整头部布局：让箭头和文字竖着排 */
+            .archive-module.collapsed .archive-header {
+                padding: 15px 0;
+                display: flex;
+                flex-direction: column; /* 纵向排列：先箭头，后文字 */
+                align-items: center;    /* 水平居中 */
+                justify-content: flex-start;
+                gap: 15px;              /* 箭头和文字之间的距离 */
+                border-bottom: none;
+                height: 100%;           /* 占据全高 */
+            }
+            
+            /* 收起时文字变为竖排的关键修正 */
+            .archive-module.collapsed .archive-header h2 {
+                display: block; 
+                writing-mode: vertical-lr; /* 竖向文本流 */
+                text-orientation: upright; /* 汉字保持正立 */
+                
+                /* 1. 字体大小强制同步：使用和展开时一样的 1.2em，并加 bold 确保视觉重量 */
+                font-size: 1.2em; 
+                font-weight: bold;
+                
+                /* 2. 核心修正：解决“间距大”的问题 */
+                /* 在竖排模式下，line-height 会变成字与字之间的左右间距，
+                   而我们需要的是垂直方向的紧凑，所以设置 line-height 为 1 */
+                line-height: 1; 
+                
+                /* 3. 核心修正：设置字间距为 0，确保和水平时一样紧凑 */
+                letter-spacing: 0px; 
+                
+                /* 4. 消除所有可能导致缩小的内边距/外边距 */
+                margin: 0;
+                padding: 0;
+                white-space: nowrap;
+                color: #2c3e50;
+            }
+            
+            /* 收起时箭头的样式 */
+            .archive-module.collapsed .archive-header .archive-toggle-button {
+                display: block !important;
+                transform: rotate(-90deg); /* 让原本向下的箭头指向右侧 */
+                font-size: 1.2em;
+                margin: 0;
+            }
+        /* --- 结束核心修改 --- */
+
+
+        .panel h1 {
+            color: #2c3e50;
+            text-align: center;
+            margin-top: 0;
+            margin-bottom: 30px;
+        }
+
+        /* --- 新增：统计区域样式 --- */
+        .stats-panel {
+            background-color: #f9f9f9;
+            border-radius: 8px;
+            padding: 15px;
+            margin-bottom: 20px;
+            box-shadow: 0 2px 5px rgba(0, 0, 0, 0.1);
+            border: 1px solid #ddd;
+        }
+
+        .stats-header {
+            font-size: 1.1em;
+            font-weight: bold;
+            margin-bottom: 10px;
+            color: #2c3e50;
+        }
+
+        .progress-bar {
+            width: 100%;
+            height: 20px;
+            background-color: #e0e0e0;
+            border-radius: 10px;
+            overflow: hidden;
+            margin-bottom: 5px;
+        }
+
+        .progress {
+            height: 100%;
+            background-color: #4CAF50;
+            border-radius: 10px;
+            transition: width 0.3s ease;
+        }
+
+        .stats-text {
+            font-size: 0.9em;
+            color: #666;
+            text-align: center;
+        }
+
+        .add-card-button {
+            background-color: #f9f9f9;
+            border: 2px dashed #ccc;
+            border-radius: 6px;
+            padding: 15px 20px;
+            box-sizing: border-box;
+            text-align: center;
+            color: #999;
+            font-size: 2em;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            cursor: pointer;
+            margin-bottom: 20px;
+            transition: border-color 0.2s ease-in-out, background-color 0.2s ease-in-out;
+            flex-shrink: 0; /* 防止被压缩 */
+        }
+
+            .add-card-button:hover {
+                border-color: #007bff;
+                background-color: #e6f7ff;
+                color: #007bff;
+            }
+
+            .add-card-button span {
+                line-height: 1;
+            }
+
+        .card-list {
+            display: flex;
+            flex-direction: column;
+            min-height: 100px;
+            position: relative;
+            flex-grow: 1;
+        }
+
+        .card {
+            background-color: #f9f9f9;
+            border-radius: 10px;
+            border-bottom-left-radius: 10px;
+            padding: 0;
+            box-sizing: border-box;
+            text-align: center;
+            box-shadow: 0 2px 5px rgba(0, 0, 0, 0.1);
+            border: 2px solid #ddd;
+            border-left: none;
+            transition: box-shadow 0.2s ease-in-out, transform 0.2s ease-out, border-color 0.2s ease-in-out;
+            cursor: grab;
+            z-index: 1;
+            margin-bottom: 15px;
+            display: flex;
+            align-items: stretch;
+            position: relative;
+            overflow: hidden;
+            flex-shrink: 0; /* 防止卡片在滚动区域被压缩 */
+        }
+
+            .card:last-child {
+                margin-bottom: 0;
+            }
+            /* 鼠标悬停时的描边颜色 */
+            .card:hover {
+                box-shadow: 0 6px 12px rgba(0, 0, 0, 0.15);
+                border-color: #87ceeb; /* 淡蓝色 */
+                border-left-color: #87ceeb; /* 悬停时左侧边框也显示蓝色 */
+            }
+
+            /* 选中时的描边样式 */
+            .card.selected {
+                border-color: #007bff;
+                box-shadow: 0 4px 10px rgba(0, 123, 255, 0.2);
+                border-left-color: #007bff; /* 选中时左侧边框也显示蓝色 */
+            }
+
+            /* 拖拽中的卡片样式 */
+            .card.is-dragging {
+                position: fixed;
+                top: var(--drag-start-y);
+                left: var(--drag-start-x);
+                transform: translate(var(--x, 0), var(--y, 0));
+                cursor: grabbing;
+                box-shadow: 0 8px 16px rgba(0, 0, 0, 0.25);
+                z-index: 1000;
+                width: var(--drag-width);
+                height: var(--drag-height);
+            }
+
+        /* 拖拽占位符样式 */
+        .placeholder {
+            background-color: #e0e0e0;
+            border: 2px dashed #999;
+            border-radius: 6px;
+            padding: 0;
+            box-sizing: border-box;
+            text-align: center;
+            transition: all 0.2s ease-in-out;
+            display: flex;
+            align-items: stretch;
+            justify-content: center;
+            color: #777;
+            font-size: 1em;
+            margin-bottom: 15px;
+            /* --- 核心修改：移除 height: 100px; 启用自动高度 --- */
+            /* 占位符高度应与被拖动的卡片一致，由JS设置 */
+        }
+
+            /* 占位符内部内容区域 */
+            .placeholder .card-content {
+                flex-grow: 1;
+                display: flex;
+                align-items: center;
+                justify-content: center;
+                padding: 15px 20px;
+            }
+
+        .card-list .placeholder:last-child {
+            margin-bottom: 0;
+        }
+
+        /* --- 新增：还原占位符样式 --- */
+        .restore-placeholder {
+            border: 2px dashed #a8caff;
+            background-color: #eaf5ff;
+            color: #007bff;
+        }
+
+            .restore-placeholder .card-content {
+                color: #007bff;
+                background-color: #eaf5ff;
+            }
+
+        /* 编辑模式下 input/textarea 的样式 */
+        .card h2,
+        .card textarea {
+            flex-grow: 1;
+            font-weight: bold;
+            margin: 0;
+            padding: 0;
+            line-height: 1.5;
+            word-wrap: break-word;
+            overflow-wrap: break-word;
+            white-space: pre-wrap;
+        }
+        /* 详细信息面板标题的编辑样式 */
+        .details-panel h1,
+        .details-panel textarea {
+            font-size: 1.6em;
+            font-weight: bold;
+            text-align: left;
+            margin: 0;
+            padding: 0;
+            line-height: 1.5;
+            word-wrap: break-word;
+            overflow-wrap: break-word;
+            white-space: pre-wrap;
+            border: none;
+            background-color: transparent;
+            outline: none;
+            resize: none;
+            width: 100%;
+            box-sizing: border-box;
+            font-family: inherit;
+            color: inherit;
+        }
+
+
+        .card textarea {
+            border: none;
+            outline: none;
+            background-color: transparent;
+            resize: none;
+            height: auto;
+            min-height: 30px;
+            width: 100%;
+            box-sizing: border-box;
+            font-family: inherit;
+            color: inherit;
+            overflow-y: hidden;
+        }
+
+        /* 为h2添加溢出省略样式 */
+        .card h2 {
+            display: -webkit-box;
+            -webkit-line-clamp: 2; /* 限制2行 */
+            -webkit-box-orient: vertical;
+            overflow: hidden;
+            text-overflow: ellipsis;
+        }
+
+        /* --- 修改：卡片左侧标签头样式 --- */
+        .card-tag {
+            position: absolute;
+            left: 0;
+            top: 0;
+            bottom: 0;
+            width: 10px; /* 增加宽度 */
+            background-color: #ff9800;
+            /* 调整圆角，只保留左上角圆角 */
+            border-top-left-radius: 6px;
+            border-bottom-left-radius: 6px;
+            cursor: pointer;
+            z-index: 2;
+        }
+
+        /* 卡片内容区域的容器 */
+        .card-content {
+            flex-grow: 1;
+            display: flex;
+            flex-direction: column;
+            justify-content: center;
+            align-items: flex-start; /* --- 修改: 左对齐 --- */
+            /* --- 调整上下内边距 --- */
+            padding: 5px 20px; /* --- 核心修改: 上下为5px, 左右为20px --- */
+            background-color: #f9f9f9;
+            border-top-right-radius: 6px;
+            border-bottom-right-radius: 6px;
+            box-sizing: border-box;
+            position: relative;
+            z-index: 1;
+        }
+
+        /* --- 新增：删除按钮样式 --- */
+        .delete-button {
+            position: absolute;
+            top: 50%;
+            right: 8px;
+            transform: translateY(-50%);
+            background-color: rgba(128, 128, 128, 0.3);
+            color: white;
+            border: none;
+            border-radius: 50%;
+            width: 20px;
+            height: 20px;
+            font-size: 1em;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            cursor: pointer;
+            opacity: 0;
+            transition: opacity 0.2s ease-in-out, background-color 0.2s ease-in-out;
+            z-index: 10;
+            line-height: 1;
+            padding: 0;
+        }
+        /* 鼠标悬停在卡片上时显示删除按钮 */
+        .card:hover .delete-button {
+            opacity: 1;
+        }
+
+        .delete-button:hover {
+            background-color: rgba(255, 0, 0, 0.6);
+        }
+
+        /* 归档模块样式 */
+        .archive-module {
+            width: 50%;
+            background-color: #ffffff;
+            border-radius: 10px;
+            box-shadow: 0 6px 12px rgba(0, 0, 0, 0.15);
+            box-sizing: border-box;
+            padding: 0;
+            display: flex;
+            flex-direction: column;
+            /* --- 核心修改：移除 height: auto; 和 overflow: hidden; --- */
+            /* 样式已合并到 .archive-module 的 max-height 和 transition 中 */
+        }
+
+        .archive-header {
+            display: flex;
+            /* --- 核心修改：将内容居中，并确保垂直对齐 --- */
+            justify-content: center;
+            align-items: center; /* 确保垂直居中 */
+            color: #2c3e50;
+            padding: 15px 20px;
+            cursor: pointer;
+            border-bottom: 1px solid #eee;
+            box-sizing: border-box;
+            flex-shrink: 0; /* 防止被压缩 */
+        }
+            /* --- 核心修改：移除 h2 的下边距，保证垂直居中 --- */
+            .archive-header h2 {
+                margin: 0;
+                font-size: 1.2em;
+            }
+
+        .archive-toggle-button {
+            /* --- 核心修改：直接移除这个按钮的样式，让它不显示 --- */
+            display: none;
+        }
+
+        /* 展开时旋转箭头 */
+        .archive-module:not(.collapsed) .archive-toggle-button {
+            transform: rotate(180deg);
+        }
+
+        /* --- 修改: 归档内容区域的 CSS --- */
+        .archive-content {
+            /* 默认收起状态 */
+            max-height: 0;
+            overflow-y: auto;
+            padding: 0 20px;
+            opacity: 0;
+            pointer-events: none;
+            transition: max-height 0.5s cubic-bezier(0.25, 1, 0.5, 1), padding 0.5s, opacity 0.5s;
+        }
+
+        .archive-module:not(.collapsed) .archive-content {
+            /* 展开状态 */
+            max-height: 2000px; /* 足够大的值，确保能显示所有内容 */
+            padding-top: 15px;
+            padding-bottom: 15px;
+            opacity: 1;
+            pointer-events: auto;
+        }
+        /* --- 结束修改 --- */
+
+        /* --- 核心修改：归档卡片的样式，与主列表卡片保持一致 --- */
+        .archive-content .card {
+            background-color: #f9f9f9; /* 与主列表一致的背景色 */
+            border: 2px solid #ddd;
+            border-left: none;
+            pointer-events: auto;
+            cursor: pointer; /* 归档卡片现在可以点击选中 */
+            opacity: 0.7; /* 归档卡片略微透明 */
+            margin-bottom: 15px; /* 与主列表卡片保持一致的边距 */
+            display: flex;
+            align-items: stretch;
+            padding: 0;
+            transition: border-color 0.2s ease-in-out, box-shadow 0.2s ease-in-out;
+            border-radius: 10px; /* 保持圆角 */
+            box-shadow: 0 2px 5px rgba(0, 0, 0, 0.1); /* 保持阴影 */
+        }
+
+            .archive-content .card:hover {
+                box-shadow: 0 6px 12px rgba(0, 0, 0, 0.15);
+                border-color: #87ceeb;
+                border-left-color: #87ceeb;
+            }
+
+            .archive-content .card:last-child {
+                margin-bottom: 0;
+            }
+
+            /* --- 新增：归档卡片选中时的样式 --- */
+            .archive-content .card.selected {
+                border-color: #007bff; /* 蓝色描边 */
+                box-shadow: 0 4px 10px rgba(0, 123, 255, 0.2); /* 蓝色阴影 */
+                border-left-color: #007bff; /* 左侧边框也为蓝色 */
+                opacity: 1; /* 选中时完全不透明 */
+            }
+            /* --- 结束新增 --- */
+
+            .archive-content .card .card-content {
+                background-color: #f9f9f9; /* 与主列表一致的背景色 */
+                padding: 5px 20px; /* 与主列表一致的内边距 */
+                flex-direction: column; /* 保持垂直排列 */
+                justify-content: center;
+                align-items: flex-start;
+            }
+
+            .archive-content .card .card-tag {
+                background-color: #888;
+            }
+            /* --- 核心修改：归档卡片内容区域的布局恢复到与主列表一致 --- */
+            .archive-content .card .card-content-wrapper {
+                flex-direction: column;
+                align-items: flex-start;
+                justify-content: center;
+            }
+            /* --- 核心修改：归档卡片内部文字样式保持与主列表一致 --- */
+            .archive-content .card .card-title {
+                font-size: 1em;
+                font-weight: bold;
+                text-align: left;
+                margin-top: 0;
+                margin-bottom: 5px;
+            }
+
+            .archive-content .card .card-summary {
+                font-size: 0.9em;
+                color: #888;
+                text-align: left;
+                margin-top: 0;
+                margin-bottom: 5px;
+            }
+
+            .archive-content .card .card-type {
+                font-size: 0.7em;
+                color: #888;
+                font-weight: normal;
+                margin-top: 0;
+                margin-bottom: 0;
+                display: none; /* 归档卡片不显示类型 */
+            }
+
+        .restore-button {
+            background: none;
+            border: none;
+            font-size: 1.5em;
+            color: #666;
+            cursor: pointer;
+            padding: 5px;
+            margin-left: 10px;
+            transition: color 0.2s ease-in-out;
+            line-height: 1;
+            flex-shrink: 0;
+            position: absolute;
+            top: 50%;
+            right: 8px;
+            transform: translateY(-50%);
+            opacity: 0;
+            transition: opacity 0.2s ease-in-out;
+            z-index: 10;
+        }
+        /* 鼠标悬停在归档卡片上时显示恢复按钮 */
+        .archive-content .card:hover .restore-button {
+            opacity: 1;
+        }
+
+        .restore-button:hover {
+            color: #007bff;
+        }
+
+        /* 新增：分隔线样式 */
+        .card-divider {
+            position: relative;
+            width: 100%;
+            height: 2px;
+            background-color: #e0e0e0;
+            margin: 20px 0;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            flex-shrink: 0; /* 防止被压缩 */
+        }
+
+            /* 分隔线文本样式 */
+            .card-divider span {
+                position: absolute;
+                background-color: var(--panel-bg-color);
+                padding: 0 10px;
+                color: #888;
+                font-size: 0.9em;
+                white-space: nowrap;
+            }
+
+        /* --- 核心修改：富文本编辑区域样式 --- */
+        .details-title-wrapper {
+            /* 详细信息面板内部的标题区域 */
+            text-align: left;
+            margin-bottom: 0;
+            margin-top: 0;
+            padding: 0;
+        }
+
+        .details-title-textarea {
+            width: 100%;
+            height: auto;
+            min-height: 40px;
+            font-size: 1.4em;
+            font-weight: bold;
+            text-align: left;
+            border: 1px solid #007bff;
+            border-radius: 5px;
+            padding: 5px;
+            box-sizing: border-box;
+            resize: none;
+            background-color: white;
+            font-family: inherit;
+            line-height: 1.5;
+            outline: none;
+            overflow: hidden;
+            transition: height 0.15s ease-out;
+            margin: 0;
+            color: inherit;
+        }
+
+        .details-content {
+            border: none; /* 移除边框 */
+            border-radius: 0;
+            padding: 0; /* 移除内边距，由父容器控制 */
+            font-size: 1em;
+            line-height: 1.6;
+            min-height: 150px;
+            outline: none;
+            overflow-y: auto;
+            word-wrap: break-word;
+            overflow-wrap: break-word;
+            white-space: pre-wrap;
+            transition: none; /* 移除过渡效果 */
+            flex-grow: 1;
+            /* 默认样式，以便富文本内容能正确渲染 */
+            color: #333; /* 默认文本颜色 */
+        }
+            /* 占位符文本样式 */
+            .details-content[data-placeholder]:empty:before {
+                content: attr(data-placeholder);
+                color: #999;
+                pointer-events: none;
+                display: block;
+                text-align: center;
+                width: 100%;
+            }
+            /* 当内容为空时，不显示光标 */
+            .details-content[contenteditable="false"] {
+                cursor: default;
+            }
+            /* 富文本内容内部的默认样式 */
+            .details-content h1, .details-content h2, .details-content h3, .details-content h4, .details-content h5, .details-content h6 {
+                margin-top: 1em;
+                margin-bottom: 0.5em;
+                font-weight: bold;
+            }
+
+            .details-content h1 {
+                font-size: 2em;
+            }
+
+            .details-content h2 {
+                font-size: 1.5em;
+            }
+
+            .details-content h3 {
+                font-size: 1.3em;
+            }
+
+            .details-content p {
+                margin-top: 0.5em;
+                margin-bottom: 0.5em;
+            }
+
+            .details-content ul, .details-content ol {
+                margin-top: 0.5em;
+                margin-bottom: 0.5em;
+                padding-left: 20px;
+            }
+
+            .details-content li {
+                margin-bottom: 0.2em;
+            }
+
+            .details-content b, .details-content strong {
+                font-weight: bold;
+            }
+
+            .details-content i, .details-content em {
+                font-style: italic;
+            }
+
+            .details-content u {
+                text-decoration: underline;
+            }
+
+            .details-content a {
+                color: #007bff;
+                text-decoration: none;
+            }
+
+                .details-content a:hover {
+                    text-decoration: underline;
+                }
+
+            .details-content blockquote {
+                border-left: 4px solid #ccc;
+                margin: 1.5em 10px;
+                padding: 0.5em 10px;
+                color: #666;
+                font-style: italic;
+            }
+
+
+        /* 卡片内部的三个文案样式 */
+        .card-content-wrapper {
+            display: flex;
+            flex-direction: column;
+            align-items: flex-start;
+            justify-content: center;
+            width: 100%;
+            padding: 0;
+        }
+
+        .card-title {
+            font-size: 1em;
+            font-weight: bold;
+            margin: 0;
+            padding: 0;
+            text-align: left;
+            word-break: break-word;
+            overflow-wrap: break-wrap;
+            white-space: pre-wrap;
+            display: -webkit-box;
+            -webkit-line-clamp: 2;
+            -webkit-box-orient: vertical;
+            overflow: hidden;
+            text-overflow: ellipsis;
+            line-height: 1.3;
+            margin-top: 0;
+            margin-bottom: 5px;
+        }
+
+        /* 标题编辑模式下的 textarea 样式 */
+        .card-title-textarea {
+            width: 100%;
+            height: auto;
+            min-height: 30px;
+            font-size: 1em;
+            font-weight: bold;
+            text-align: left;
+            border: 1px solid #007bff;
+            border-radius: 5px;
+            padding: 5px;
+            box-sizing: border-box;
+            resize: none;
+            background-color: white;
+            font-family: inherit;
+            line-height: 1.3;
+            outline: none;
+            overflow: hidden;
+            transition: height 0.15s ease-out;
+            margin: 0;
+            color: inherit;
+        }
+
+
+        .card-summary {
+            font-size: 0.9em;
+            color: #888;
+            margin: 0;
+            padding: 0;
+            text-align: left;
+            word-break: break-word;
+            overflow-wrap: break-word;
+            white-space: pre-wrap;
+            display: -webkit-box;
+            -webkit-line-clamp: 2;
+            -webkit-box-orient: vertical;
+            overflow: hidden;
+            text-overflow: ellipsis;
+            line-height: 1.2;
+            max-height: 2.4em;
+            margin-top: 0;
+            margin-bottom: 5px;
+        }
+
+        .card-type {
+            font-size: 0.7em;
+            color: #888;
+            font-weight: normal;
+            margin: 0;
+            user-select: none;
+            pointer-events: none;
+            margin-top: 0;
+            margin-bottom: 0;
+        }
+
+        /* 让容器里的按钮横向排列 */
+        .details-bottom-button {
+            display: flex; /* 使用 Flexbox 实现横向布局 */
+            gap: 15px; /* 按钮之间的间距 */
+            justify-content: flex-start; /* 将按钮靠右对齐 */
+            align-items: center; /* 垂直居中对齐 */
+            /* 容器内边距，增加一些空间 */
+            margin-top: 10px;
+        }
+
+            /* 按钮的通用样式 */
+            .details-bottom-button button {
+                padding: 10px 20px;
+                border: none; /* 移除边框 */
+                border-radius: 8px; /* 圆角边框 */
+                font-size: 16px;
+                font-weight: bold;
+                cursor: pointer; /* 鼠标悬停时显示手型光标 */
+                transition: background-color 0.3s ease, transform 0.1s ease; /* 添加过渡效果 */
+                color: #ffffff; /* 按钮文字颜色为白色 */
+            }
+
+                /* 鼠标悬停在按钮上时的效果 */
+                .details-bottom-button button:hover {
+                    transform: translateY(-2px); /* 向上轻微移动 */
+                    box-shadow: 0 4px 8px rgba(0, 0, 0, 0.1); /* 添加阴影效果 */
+                }
+
+                /* 鼠标点击按钮时的效果 */
+                .details-bottom-button button:active {
+                    transform: translateY(0); /* 恢复原位 */
+                }
+
+                /* "事项完成"按钮的特定样式 */
+                .details-bottom-button button:first-child {
+                    background-color: #28a745; /* 绿色背景 */
+                }
+
+                /* "删除"按钮的特定样式 */
+                .details-bottom-button button:last-child {
+                    background-color: #dc3545; /* 红色背景 */
+                }
+
+        /* 富文本编辑器工具栏样式 */
+        .editor-toolbar {
+            display: flex;
+            flex-wrap: wrap; /* 允许按钮换行 */
+            gap: 8px; /* 按钮之间的间距 */
+            padding: 10px;
+            background-color: #e9e9e9;
+            border-radius: 8px;
+            margin-bottom: 10px; /* 与内容区间隔 */
+            border: 1px solid #ccc;
+            justify-content: flex-start;
+        }
+
+            .editor-toolbar button {
+                background-color: #f0f0f0;
+                border: 1px solid #ccc;
+                border-radius: 5px;
+                padding: 5px 10px;
+                font-size: 0.9em;
+                cursor: pointer;
+                transition: background-color 0.2s ease, border-color 0.2s ease;
+                min-width: 30px; /* 确保按钮不会太窄 */
+                font-weight: bold;
+                color: #555;
+            }
+
+                .editor-toolbar button:hover {
+                    background-color: #e0e0e0;
+                    border-color: #999;
+                }
+
+                .editor-toolbar button:active {
+                    background-color: #d0d0d0;
+                    border-color: #777;
+                }
+
+                /* 为图标按钮（如H3、UL、OL）添加更具体的样式 */
+                .editor-toolbar button.format-button {
+                    font-family: Arial, sans-serif; /* 确保字体清晰 */
+                }
+
+        /* 保留 .drag-img 类以配合后台生成的代码，但仅用于基础布局 */
+        .drag-img {
+            max-width: 100%;    /* 防止图片撑破卡片 */
+            height: auto;       /* 保持宽高比 */
+            display: block;     /* 避免行内元素的下边缘间隙 */
+            margin: 5px 0;      /* 保持一点间距 */
+            /* 移除 cursor: pointer，除非你想保留点击查看大图等功能，否则不需要手型 */
+        }
+    </style>
+</head>
+<body>
+    <!-- 新增工作区管理头部 -->
+    <div class="workspace-header">
+        <div class="workspace-selector">
+            <label for="workspace-select">工作区:</label>
+            <select id="workspace-select" class="workspace-select">
+                <!-- 工作区选项将通过JavaScript动态生成 -->
+            </select>
+            <!-- 新增：有序模式切换按钮 -->
+            <div id="order-mode-toggle" class="order-mode-toggle">
+                <div class="order-mode-indicator"></div>
+                <span class="order-mode-text">有序模式</span>
+            </div>
+        </div>
+        <div class="workspace-actions">
+            <button id="create-workspace-btn" class="workspace-btn">新建工作区</button>
+            <button id="rename-workspace-btn" class="workspace-btn">重命名</button>
+            <button id="delete-workspace-btn" class="workspace-btn delete">删除工作区</button>
+        </div>
+    </div>
+
+    <div class="main-container">
+        <div class="archive-module">
+            <div class="archive-header">
+                <h2>已归档事项</h2>
+                <span class="archive-toggle-button">▼</span>
+            </div>
+            <div class="archive-content">
+            </div>
+        </div>
+
+        <div class="panel">
+            <!-- 新增：统计区域 -->
+            <div class="stats-panel">
+                <div class="stats-header">完成进度：<span id="completed-percent">0%</span></div>
+                <div class="progress-bar">
+                    <div class="progress" id="progress-bar-fill"></div>
+                </div>
+                <div class="stats-text">总事项：<span id="total-count">0</span> | 已完成：<span id="completed-count">0</span> | 未完成：<span id="uncompleted-count">0</span></div>
+            </div>
+            
+            <div class="add-card-button">
+                <span>+</span>
+            </div>
+            <div class="card-list">
+            </div>
+        </div>
+
+        <div class="details-panel">
+            <div class="details-container">
+                <div class="details-content-wrapper">
+                    <div class="details-title-wrapper">
+                        <h2 id="details-title"></h2>
+                    </div>
+                    <!-- 新增富文本编辑工具栏 -->
+                    <div class="editor-toolbar" id="editor-toolbar">
+                        <button class="format-button" data-command="bold"><b>B</b></button>
+                        <button class="format-button" data-command="italic"><i>I</i></button>
+                        <button class="format-button" data-command="underline"><u>U</u></button>
+                        <button class="format-button" data-command="insertUnorderedList">UL</button>
+                        <button class="format-button" data-command="insertOrderedList">OL</button>
+                        <button class="format-button" data-command="formatBlock" data-value="h3">H3</button>
+                    </div>
+                    <div id="details-content-main" class="details-content" contenteditable="true" spellcheck="false" data-placeholder="点击卡片以查看或编辑详细信息..."></div>
+                </div>
+            </div>
+            <div class="details-bottom-button">
+                <button id="complete-btn">事项完成</button>
+                <button id="delete-btn">删除</button>
+            </div>
+        </div>
+    </div>
+
+<script>
+    // 工作区管理相关变量
+    let workspaces = {};
+    let currentWorkspaceId = null;
+    const workspaceSelect = document.getElementById('workspace-select');
+    const createWorkspaceBtn = document.getElementById('create-workspace-btn');
+    const renameWorkspaceBtn = document.getElementById('rename-workspace-btn');
+    const deleteWorkspaceBtn = document.getElementById('delete-workspace-btn');
+    const orderModeToggle = document.getElementById('order-mode-toggle'); // 新增：有序模式切换按钮
+
+    // 原有变量保持不变
+    const cardList = document.querySelector('.card-list');
+    const addCardButton = document.querySelector('.add-card-button');
+    const archiveModule = document.querySelector('.archive-module');
+    const archiveContent = document.querySelector('.archive-content');
+    const detailsTitle = document.getElementById('details-title');
+    const detailsContent = document.getElementById('details-content-main');
+    const completeButton = document.getElementById('complete-btn');
+    const deleteButton = document.getElementById('delete-btn');
+    const editorToolbar = document.getElementById('editor-toolbar'); // 新增：获取工具栏元素
+
+    // 新增：统计区域元素
+    const completedPercentElement = document.getElementById('completed-percent');
+    const totalCountElement = document.getElementById('total-count');
+    const completedCountElement = document.getElementById('completed-count');
+    const uncompletedCountElement = document.getElementById('uncompleted-count');
+    const progressBarFill = document.getElementById('progress-bar-fill');
+
+    let draggedItem = null;
+    let placeholder = null; // 用于拖拽的占位符
+    let restorePlaceholder = null; // 用于还原的占位符
+    let initialMouseX = 0;
+    let initialMouseY = 0;
+    let isDragging = false;
+    let originalNextSibling = null;
+    let originalItemRect = null;
+    let currentPlaceholderIndex = -1;
+    let selectedCard = null; // 存储当前选中的卡片
+    let isEditing = false; // 用于卡片内容编辑状态 (现在也用于标题编辑)
+    let isColorPicking = false; // 用于颜色选择状态
+
+    const TITLE_MAX_LENGTH = 50; // 定义标题最大长度
+    const SUMMARY_MAX_LENGTH = 80; // 定义摘要最大长度
+
+    // ==================== 调试通信机制 ====================
+    const DEBUG_TOOL_NAME = 'tododragboard';
+    let currentCommandId = null;
+
+    async function pollDebugCommand() {
+        try {
+            const response = await fetch(`/debug_comm/poll?tool=${DEBUG_TOOL_NAME}`);
+            const data = await response.json();
+            
+            if (data.command) {
+                currentCommandId = data.command_id;
+                console.log('[调试通信] 收到命令:', data.command);
+                
+                try {
+                    const result = eval(data.command);
+                    console.log('[调试通信] 执行结果:', result);
+                    
+                    await submitDebugResult(result);
+                } catch (e) {
+                    console.error('[调试通信] 执行错误:', e);
+                    await submitDebugResult(e.toString(), 'error');
+                }
+            }
+        } catch (e) {
+            console.error('[调试通信] 轮询错误:', e);
+        }
+    }
+
+    async function submitDebugResult(result, level = 'info') {
+        try {
+            const payload = {
+                tool: DEBUG_TOOL_NAME,
+                result: result,
+                logs: [{ level: level, message: `执行完成: ${result}` }],
+                command_id: currentCommandId
+            };
+            await fetch('/debug_comm/submit', {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify(payload)
+            });
+        } catch (e) {
+            console.error('[调试通信] 提交结果错误:', e);
+        }
+    }
+
+    setInterval(pollDebugCommand, 500);
+
+    // ==================== API 函数 ====================
+
+    // 从服务器加载数据
+    async function loadFromServer() {
+        try {
+            const payload = {
+                filename: 'taskWorkspacesData'
+            };
+
+            const response = await fetch('api/json/r', {
+                method: 'POST',
+                headers: {
+                    'Content-Type': 'application/json'
+                },
+                body: JSON.stringify(payload)
+            });
+            
+            if (!response.ok) {
+                throw new Error(`HTTP error! status: ${response.status}`);
+            }
+            
+            const data = await response.json();
+            return data;
+        } catch (error) {
+            if (error.message.includes('404') || error.message.includes('400')) {
+                return null;
+            }
+            throw error;
+        }
+    }
+
+    // 保存数据到服务器
+    async function saveToServer(data) {
+        try {
+            const payload = {
+                filename: 'taskWorkspacesData',
+                data: data
+            };
+
+            const response = await fetch('api/json/w', {
+                method: 'POST',
+                headers: {
+                    'Content-Type': 'application/json'
+                },
+                body: JSON.stringify(payload)
+            });
+            
+            if (!response.ok) {
+                throw new Error(`HTTP error! status: ${response.status}`);
+            }
+            
+            const result = await response.json();
+            console.log('--- saveToServer: 数据保存成功 ---', result);
+            return result;
+        } catch (error) {
+            console.error('--- saveToServer: 保存数据到服务器失败 ---', error);
+            throw error;
+        }
+    }
+
+    // 页面加载完成后立即确保分隔线存在且位置正确
+    document.addEventListener('DOMContentLoaded', () => {
+        // 在DOMContentLoaded之后，获取panel的背景色并设置CSS变量
+        const panel = document.querySelector('.panel');
+        if (panel) {
+            const panelBgColor = window.getComputedStyle(panel).backgroundColor;
+            document.documentElement.style.setProperty('--panel-bg-color', panelBgColor);
+        }
+        
+        // 初始化工作区系统
+        initWorkspaceSystem();
+        
+        // 页面加载后自动选中第一个卡片
+        // 延迟选中，确保卡片元素已经创建并渲染
+        setTimeout(() => {
+            const firstCard = cardList.querySelector('.card');
+            if (firstCard) {
+                selectCard(firstCard);
+            }
+        }, 100); // 100ms 延迟，确保 DOM 更新完成
+    });
+
+    // ==================== 工作区管理功能 ====================
+
+    // 初始化工作区系统
+    function initWorkspaceSystem() {
+        // 绑定工作区按钮事件
+        createWorkspaceBtn.addEventListener('click', createWorkspace);
+        renameWorkspaceBtn.addEventListener('click', renameCurrentWorkspace);
+        deleteWorkspaceBtn.addEventListener('click', deleteCurrentWorkspace);
+        workspaceSelect.addEventListener('change', switchWorkspace);
+        
+        // 新增：绑定有序模式切换事件
+        orderModeToggle.addEventListener('click', toggleOrderMode);
+        
+        // 新增：启动定时自动保存（每10秒保存一次）
+        startAutoSave();
+        
+        // 加载工作区数据
+        loadWorkspaceData();
+    }
+
+    // 新增：定时自动保存功能
+    function startAutoSave() {
+        // 每10秒自动保存一次
+        setInterval(async () => {
+            // 只有在有当前工作区时才保存
+            if (currentWorkspaceId && workspaces[currentWorkspaceId]) {
+                console.log('--- 定时自动保存 ---');
+                await saveWorkspaceData();
+            }
+        }, 2000); // 10秒
+    }
+
+    // 新增：切换有序模式
+    function toggleOrderMode() {
+        if (!currentWorkspaceId) return;
+        
+        const currentWorkspace = workspaces[currentWorkspaceId];
+        currentWorkspace.isOrdered = !currentWorkspace.isOrdered;
+        
+        // 更新UI状态
+        updateOrderModeUI();
+        
+        // 保存工作区数据
+        saveWorkspaceData();
+    }
+
+    // 新增：更新有序模式UI
+    function updateOrderModeUI() {
+        if (!currentWorkspaceId) return;
+        
+        const currentWorkspace = workspaces[currentWorkspaceId];
+        
+        if (currentWorkspace.isOrdered) {
+            orderModeToggle.classList.add('active');
+            orderModeToggle.setAttribute('title', '有序模式已开启：只有第一个任务可以完成');
+        } else {
+            orderModeToggle.classList.remove('active');
+            orderModeToggle.setAttribute('title', '有序模式已关闭：任何任务都可以完成');
+        }
+    }
+
+    // 创建工作区
+    async function createWorkspace() {
+        const workspaceName = prompt('请输入新工作区的名称:', `工作区 ${Object.keys(workspaces).length + 1}`);
+        if (!workspaceName) return;
+        
+        const workspaceId = 'workspace-' + Date.now();
+        const newWorkspace = {
+            id: workspaceId,
+            name: workspaceName,
+            createdAt: new Date().toISOString(),
+            lastActive: new Date().toISOString(),
+            cards: [],
+            archiveModuleCollapsed: true,
+            isOrdered: true // 新增：默认有序模式
+        };
+        
+        workspaces[workspaceId] = newWorkspace;
+        
+        // 更新工作区选择器
+        updateWorkspaceSelector();
+        
+        // 切换到新工作区
+        switchWorkspaceById(workspaceId);
+        
+        // 保存工作区数据
+        await saveWorkspaceData();
+    }
+
+    // 重命名当前工作区
+    async function renameCurrentWorkspace() {
+        if (!currentWorkspaceId) return;
+        
+        const currentWorkspace = workspaces[currentWorkspaceId];
+        const newName = prompt('请输入新的工作区名称:', currentWorkspace.name);
+        
+        if (newName && newName.trim() !== '') {
+            currentWorkspace.name = newName.trim();
+            updateWorkspaceSelector();
+            await saveWorkspaceData();
+        }
+    }
+
+    // 删除当前工作区
+    async function deleteCurrentWorkspace() {
+        if (!currentWorkspaceId) return;
+        
+        // 不能删除最后一个工作区
+        if (Object.keys(workspaces).length <= 1) {
+            alert('不能删除最后一个工作区！');
+            return;
+        }
+        
+        if (confirm(`确定要删除工作区 "${workspaces[currentWorkspaceId].name}" 吗？此操作无法撤销。`)) {
+            // 先保存要被删除的工作区ID
+            const workspaceToDeleteId = currentWorkspaceId;
+            const workspaceToDeleteName = workspaces[currentWorkspaceId].name;
+            
+            // 清理 localStorage 中该工作区的选中卡片信息
+            localStorage.removeItem(`selectedCard_${workspaceToDeleteId}`);
+            
+            // 先切换到另一个工作区（在删除之前）
+            const remainingWorkspaceIds = Object.keys(workspaces).filter(id => id !== workspaceToDeleteId);
+            if (remainingWorkspaceIds.length > 0) {
+                // 直接设置当前工作区ID，不通过 switchWorkspaceById 避免保存状态
+                currentWorkspaceId = remainingWorkspaceIds[0];
+                workspaces[currentWorkspaceId].lastActive = new Date().toISOString();
+                
+                // 更新工作区选择器
+                updateWorkspaceSelector();
+                
+                // 加载新工作区状态
+                loadCurrentWorkspaceState();
+            }
+            
+            // 现在安全地删除工作区
+            delete workspaces[workspaceToDeleteId];
+            
+            // 保存工作区数据
+            await saveWorkspaceData();
+            
+            console.log(`工作区 "${workspaceToDeleteName}" 已删除`);
+
+            location.reload();
+        }
+    }
+
+    // 通过ID切换工作区
+    async function switchWorkspaceById(workspaceId) {
+        if (!workspaces[workspaceId]) return;
+        
+        // 保存当前工作区状态
+        if (currentWorkspaceId) {
+            await saveCurrentWorkspaceState();
+        }
+        
+        // 切换到新工作区
+        currentWorkspaceId = workspaceId;
+        workspaces[workspaceId].lastActive = new Date().toISOString();
+        
+        // 更新工作区选择器
+        updateWorkspaceSelector();
+        
+        // 加载工作区数据
+        loadCurrentWorkspaceState();
+        
+        // 保存工作区数据
+        await saveWorkspaceData();
+    }
+
+    // 切换工作区（事件处理）
+    async function switchWorkspace() {
+        const selectedWorkspaceId = workspaceSelect.value;
+        if (selectedWorkspaceId && selectedWorkspaceId !== currentWorkspaceId) {
+            await switchWorkspaceById(selectedWorkspaceId);
+        }
+    }
+
+    // 保存当前工作区状态
+    function saveCurrentWorkspaceState() {
+        if (!currentWorkspaceId) return;
+        
+        const currentWorkspace = workspaces[currentWorkspaceId];
+        
+        // 保存卡片数据
+        currentWorkspace.cards = _collectCurrentCardsData();
+        
+        // 保存归档模块状态
+        currentWorkspace.archiveModuleCollapsed = archiveModule.classList.contains('collapsed');
+    }
+
+    // 加载当前工作区状态
+    function loadCurrentWorkspaceState() {
+        if (!currentWorkspaceId) return;
+        
+        const currentWorkspace = workspaces[currentWorkspaceId];
+        
+        // 清空现有卡片
+        document.querySelectorAll('.card-list .card, .archive-content .card, .card-list .card-divider').forEach(el => el.remove());
+        selectedCard = null;
+        
+        // 加载卡片数据
+        if (currentWorkspace.cards && currentWorkspace.cards.length > 0) {
+            currentWorkspace.cards.forEach(cardData => {
+                createNewCard(cardData.content, cardData.details, cardData.tagColor, cardData.isArchived, cardData.originalTagColor);
+            });
+        } else {
+            // 如果工作区没有卡片，创建默认卡片
+            createDefaultCardsForWorkspace();
+        }
+        
+        // 恢复归档模块状态
+        if (currentWorkspace.archiveModuleCollapsed) {
+            archiveModule.classList.add('collapsed');
+        } else {
+            archiveModule.classList.remove('collapsed');
+        }
+        
+        // 新增：更新有序模式UI
+        updateOrderModeUI();
+        
+        // 更新界面
+        placeDivider();
+        updateCardTypes();
+        updateDetailsPanel();
+        
+        // 更新统计信息
+        updateStatistics();
+        
+        // 新增：延迟恢复选中的卡片
+        setTimeout(() => {
+            restoreSelectedCardFromStorage();
+        }, 50);
+    }
+
+    // 新增：从 localStorage 恢复选中卡片的函数
+    function restoreSelectedCardFromStorage() {
+        if (!currentWorkspaceId) return;
+        
+        const storageKey = `selectedCard_${currentWorkspaceId}`;
+        const savedCardTitle = localStorage.getItem(storageKey);
+        
+        if (savedCardTitle) {
+            // 查找匹配的卡片（所有卡片中第一个标题匹配的）
+            const allCards = Array.from(document.querySelectorAll('.card-list .card, .archive-content .card'));
+            
+            for (const card of allCards) {
+                const cardTitle = card.dataset.fullContent || card.querySelector('.card-title').textContent;
+                
+                // 简单匹配：如果保存的标题与卡片标题开头部分匹配（考虑到标题可能被截断）
+                if (cardTitle.startsWith(savedCardTitle) || savedCardTitle.startsWith(cardTitle)) {
+                    selectCard(card);
+                    return;
+                }
+            }
+            
+            console.log('未找到匹配的卡片，将选中第一个卡片');
+        }
+        
+        // 如果没有保存的选中卡片或没找到匹配的，选中第一个卡片（如果存在）
+        const firstCard = document.querySelector('.card-list .card') || document.querySelector('.archive-content .card');
+        if (firstCard) {
+            selectCard(firstCard);
+        }
+    }
+    // 为工作区创建默认卡片
+    function createDefaultCardsForWorkspace() {
+        const defaultCards = [
+            {
+                "content": "新工作区示例任务",
+                "details": "<p>这是一个示例任务。您可以：</p><ul><li>双击标题进行编辑</li><li>双击左侧标签更改颜色</li><li>在右侧编辑详细信息</li><li>拖拽调整顺序</li><li>右键或点击\"事项完成\"归档任务</li></ul>",
+                "tagColor": "#ff9800",
+                "isArchived": false,
+                "originalTagColor": "#ff9800"
+            }
+        ];
+        
+        defaultCards.forEach(cardData => {
+            createNewCard(cardData.content, cardData.details, cardData.tagColor, cardData.isArchived, cardData.originalTagColor);
+        });
+    }
+
+    // 更新工作区选择器
+    function updateWorkspaceSelector() {
+        // 清空选择器
+        workspaceSelect.innerHTML = '';
+        
+        // 添加工作区选项
+        Object.values(workspaces).forEach(workspace => {
+            const option = document.createElement('option');
+            option.value = workspace.id;
+            option.textContent = workspace.name;
+            if (workspace.id === currentWorkspaceId) {
+                option.selected = true;
+            }
+            workspaceSelect.appendChild(option);
+        });
+    }
+
+    // 加载工作区数据
+    async function loadWorkspaceData() {
+        console.log('--- loadWorkspaceData: 开始加载工作区数据 ---');
+        
+        try {
+            const data = await loadFromServer();
+            
+            if (data && !data.error) {
+                // 成功从服务器加载数据
+                workspaces = data.workspaces || {};
+                currentWorkspaceId = data.currentWorkspaceId;
+                
+                console.log('--- loadWorkspaceData: 从服务器加载的工作区数据 ---', data);
+                
+                // 新增：确保所有工作区都有 isOrdered 属性
+                Object.values(workspaces).forEach(workspace => {
+                    if (workspace.isOrdered === undefined) {
+                        workspace.isOrdered = true; // 为旧数据设置默认值
+                    }
+                });
+            } else {
+                // 数据文件不存在或为空，创建默认工作区
+                console.log('--- loadWorkspaceData: 数据文件不存在或为空，创建默认工作区 ---');
+                createDefaultWorkspace();
+                await saveWorkspaceData();
+            }
+            
+            // 确保至少有一个工作区
+            if (Object.keys(workspaces).length === 0) {
+                createDefaultWorkspace();
+                await saveWorkspaceData();
+            }
+            
+            // 确保当前工作区有效
+            if (!currentWorkspaceId || !workspaces[currentWorkspaceId]) {
+                currentWorkspaceId = Object.keys(workspaces)[0];
+            }
+            
+            // 更新工作区选择器
+            updateWorkspaceSelector();
+            
+            // 加载当前工作区状态
+            loadCurrentWorkspaceState();
+            
+            console.log('--- loadWorkspaceData: 工作区数据加载完成 ---');
+        } catch (error) {
+            console.error('--- loadWorkspaceData: 工作区数据加载失败！---', error);
+            createDefaultWorkspace();
+            await saveWorkspaceData();
+        }
+    }
+
+    // 创建默认工作区
+    function createDefaultWorkspace() {
+        console.log('--- createDefaultWorkspace: 创建默认工作区 ---');
+        
+        const defaultWorkspaceId = 'workspace-default';
+        workspaces[defaultWorkspaceId] = {
+            id: defaultWorkspaceId,
+            name: '默认工作区',
+            createdAt: new Date().toISOString(),
+            lastActive: new Date().toISOString(),
+            cards: [],
+            archiveModuleCollapsed: true,
+            isOrdered: true // 新增：默认有序模式
+        };
+        
+        currentWorkspaceId = defaultWorkspaceId;
+        
+        // 创建默认卡片
+        createDefaultCards();
+    }
+
+    // 简单的两日缓存备份函数
+    async function simpleBackupCache(data) {
+        try {
+            // 生成日期相关的键名
+            const todayKey = 'backup_today';
+            const yesterdayKey = 'backup_yesterday';
+            
+            // 获取今天的日期字符串（格式：YYYY-MM-DD）
+            const today = new Date().toISOString().split('T')[0];
+            
+            // 检查今天是否已经备份过
+            const todayCache = localStorage.getItem(todayKey);
+            if (todayCache) {
+                try {
+                    const todayData = JSON.parse(todayCache);
+                    // 检查缓存时间是否是今天
+                    if (todayData.timestamp && todayData.timestamp.startsWith(today)) {
+                        console.log('今天已经备份过，跳过保存');
+                        return; // 今天已经备份过，不再保存
+                    }
+                } catch (e) {
+                    console.warn('解析今日缓存失败，重新保存', e);
+                }
+            }
+            
+            // 如果不是今天的数据，或者没有缓存，执行备份逻辑
+            
+            // 1. 如果今天有旧数据，先移动到昨天的键
+            if (todayCache) {
+                localStorage.setItem(yesterdayKey, todayCache);
+                console.log('将旧的今日数据移动到昨天的键');
+            }
+            
+            // 2. 保存新数据到今天的键
+            const backupData = {
+                data: data, // 原始数据
+                timestamp: new Date().toISOString(), // 完整时间戳
+                date: today, // 日期部分
+                backupTime: Date.now() // 备份时间戳
+            };
+            
+            localStorage.setItem(todayKey, JSON.stringify(backupData));
+            console.log('数据已备份到本地缓存（今日键）');
+            
+            // 3. 可选：清理超过两天的数据（保留只今天和昨天）
+            const allKeys = Object.keys(localStorage);
+            allKeys.forEach(key => {
+                if (key.startsWith('backup_') && key !== todayKey && key !== yesterdayKey) {
+                    localStorage.removeItem(key);
+                    console.log(`清理旧缓存键: ${key}`);
+                }
+            });
+            
+        } catch (error) {
+            console.error('备份缓存失败:', error);
+            // 静默失败，不影响主流程
+        }
+    }
+
+
+    // 保存工作区数据
+    async function saveWorkspaceData() {
+        console.log('--- saveWorkspaceData: 开始保存工作区数据 ---');
+        
+        // 保存当前工作区状态
+        if (currentWorkspaceId) {
+            saveCurrentWorkspaceState();
+        }
+        
+        const dataToSave = {
+            workspaces: workspaces,
+            currentWorkspaceId: currentWorkspaceId
+        };
+        
+        console.log('--- saveWorkspaceData: 准备保存的数据 ---', dataToSave);
+        
+        try {
+            await saveToServer(dataToSave);
+            console.log('--- saveWorkspaceData: 工作区数据保存成功 ---');
+            await simpleBackupCache(dataToSave);
+        } catch (error) {
+            console.error('--- saveWorkspaceData: 工作区数据保存失败！---', error);
+            console.log('保存数据失败，请检查网络连接！');
+            console.log('原始数据:', dataToSave);
+        }
+    }
+
+    // ==================== 原有功能保持不变 ====================
+
+    // 覆盖浏览器默认的右键菜单行为
+    document.addEventListener('contextmenu', function (e) {
+        e.preventDefault();
+    });
+
+    // 归档模块的展开/收起功能
+    archiveModule.addEventListener('click', function (e) {
+        // 如果点击的是归档卡片本身（或其内部除了恢复按钮之外的部分），不触发收起/展开
+        if (e.target.closest('.archive-content .card') && !e.target.closest('.restore-button')) {
+            return;
+        }
+        // 如果点击的是恢复按钮，也不应该触发收起/展开，恢复按钮的逻辑会在它自己的监听器中处理
+        if (e.target.closest('.restore-button')) {
+            return;
+        }
+        // --- 核心修改: 切换 collapsed 类而不是 expanded 类 ---
+        archiveModule.classList.toggle('collapsed');
+        
+        // 保存工作区状态
+        saveWorkspaceData();
+    });
+
+    // 绑定详细信息的按钮功能
+    completeButton.addEventListener('click', () => {
+        archiveCard(selectedCard)
+    });
+    deleteButton.addEventListener('click', () => {
+        deleteCard(selectedCard);
+    });
+
+    // 获取标准卡片的尺寸
+    function getStandardCardDimensions() {
+        // 尝试从localStorage加载的数据中找到第一个主列表卡片
+        const existingMainCard = cardList.querySelector('.card');
+        if (existingMainCard) {
+            // 使用 offsetWidth 和 offsetHeight 来获取包含 padding 和 border 的完整尺寸
+            return {
+                width: existingMainCard.offsetWidth,
+                height: existingMainCard.offsetHeight
+            };
+        }
+        // 如果主列表没有卡片，提供一个备用默认尺寸
+        return { width: 360, height: 100 }; // 调整默认高度以适应新文案
+    }
+
+    // 创建拖拽占位符
+    function createPlaceholder(width, height) {
+        if (!placeholder) {
+            placeholder = document.createElement('div');
+            placeholder.classList.add('placeholder');
+            placeholder.innerHTML = `<div class="card-content">拖放到此处</div>`;
+        }
+        placeholder.classList.remove('restore-placeholder'); // 确保没有还原样式
+        placeholder.style.width = `${width}px`;
+        placeholder.style.height = `${height}px`;
+        return placeholder;
+    }
+
+    // 创建还原占位符
+    function createRestorePlaceholder(width, height) {
+        if (!restorePlaceholder) {
+            restorePlaceholder = document.createElement('div');
+            restorePlaceholder.classList.add('placeholder', 'restore-placeholder'); // 继承基础占位符样式并添加还原专用样式
+            restorePlaceholder.innerHTML = `<div class="card-content">将要还原的位置</div>`;
+        }
+        restorePlaceholder.style.width = `${width}px`;
+        restorePlaceholder.style.height = `${height}px`;
+        return restorePlaceholder;
+    }
+
+    // 移除所有占位符
+    function removeAllPlaceholders() {
+        if (placeholder && placeholder.parentNode) {
+            placeholder.parentNode.removeChild(placeholder);
+        }
+        if (restorePlaceholder && restorePlaceholder.parentNode) {
+            restorePlaceholder.parentNode.removeChild(restorePlaceholder);
+        }
+    }
+
+    // 移除所有分割线
+    function removeAllDividers() {
+        document.querySelectorAll('.card-divider').forEach(divider => {
+            divider.parentNode.removeChild(divider);
+        });
+    }
+
+    // 放置分割线：确保它在第一个卡片下方，如果存在的话
+    function placeDivider() {
+        removeAllDividers(); // 先移除所有现有的分割线
+
+        const firstCard = cardList.querySelector('.card');
+        if (firstCard) {
+            const divider = document.createElement('div');
+            divider.classList.add('card-divider');
+            divider.innerHTML = `<span>以下为后续任务</span>`; // 添加文本
+            // 找到第一个卡片后的位置插入
+            cardList.insertBefore(divider, firstCard.nextElementSibling);
+        }
+    }
+
+    // 更新卡片类型文案
+    function updateCardTypes() {
+        const mainCards = Array.from(cardList.querySelectorAll('.card'));
+        const totalCards = mainCards.length; // 获取卡片总数
+        mainCards.forEach((card, index) => {
+            const typeElement = card.querySelector('.card-type');
+            if (typeElement) {
+                if (index === 0) {
+                    // --- 核心修改：第一个文案改为"当前/共xx个" ---
+                    typeElement.textContent = `当前/共${totalCards}个`;
+                } else {
+                    // --- 核心修改：后续文案改为 #N ---
+                    typeElement.textContent = `#${index + 1}`;
+                }
+            }
+        });
+    }
+
+    // 更新卡片内容摘要
+    function updateCardSummary(card) {
+        const details = card.dataset.details || '';
+        const summaryElement = card.querySelector('.card-summary');
+        if (summaryElement) {
+            // 清除旧的HTML标签，提取纯文本
+            const plainText = new DOMParser().parseFromString(details, 'text/html').body.textContent || '';
+            if (plainText.trim().length > 0) {
+                summaryElement.textContent = plainText.substring(0, SUMMARY_MAX_LENGTH) + (plainText.length > SUMMARY_MAX_LENGTH ? '...' : '');
+                summaryElement.style.display = 'block';
+            } else {
+                summaryElement.textContent = '';
+                summaryElement.style.display = 'none';
+            }
+        }
+    }
+
+    // 创建新卡片
+    function createNewCard(content = '新事项', details = '', tagColor = '#ff9800', isArchived = false, originalTagColor = '') { // 新增 originalTagColor 参数
+        const newCard = document.createElement('div');
+        newCard.classList.add('card');
+
+        // --- 修改: 从 data-full-content 获取完整文本 ---
+        let displayContent = content;
+        if (content.length > TITLE_MAX_LENGTH) {
+            displayContent = content.substring(0, TITLE_MAX_LENGTH) + '...';
+        }
+
+        // 如果 originalTagColor 未定义，则使用 tagColor 作为原始颜色
+        const finalOriginalTagColor = originalTagColor || tagColor;
+        newCard.dataset.originalTagColor = finalOriginalTagColor; // 使用 data 属性存储原始颜色
+        newCard.dataset.details = details; // 使用 data 存储详细信息
+        newCard.dataset.fullContent = content; // 新增：保存完整标题内容
+
+        // 提取摘要
+        const tempDiv = document.createElement('div');
+        tempDiv.innerHTML = details;
+        const summaryText = tempDiv.textContent || '';
+        const displaySummary = summaryText.substring(0, SUMMARY_MAX_LENGTH) + (summaryText.length > SUMMARY_MAX_LENGTH ? '...' : '');
+
+        // 构建内部HTML，新增 card-type 和 card-summary
+        let cardContentHTML = `
+                            <div class="card-tag" style="background-color: ${isArchived ? '#888' : tagColor};"></div>
+                            <div class="card-content">
+                                <div class="card-content-wrapper">
+                                    <h2 class="card-title">${displayContent}</h2>
+                                    <p class="card-summary">${displaySummary}</p>
+                                    <p class="card-type"></p>
+                                </div>
+                            </div>
+                        `;
+
+        newCard.innerHTML = cardContentHTML;
+
+        // 隐藏摘要如果没有内容
+        updateCardSummary(newCard);
+
+        if (isArchived) {
+            // 归档卡片样式和按钮
+            const restoreButton = document.createElement('button');
+            restoreButton.classList.add('restore-button');
+            restoreButton.setAttribute('title', '恢复到主列表');
+            restoreButton.innerHTML = '&#8635;';
+
+            // 将恢复按钮添加到 card 内部 (作为兄弟元素)
+            newCard.appendChild(restoreButton);
+
+            newCard.style.borderLeft = `2px solid #888`; // 归档卡片左侧边框颜色为灰色
+            newCard.removeAttribute('title'); // 归档卡片不需要右键提示
+            newCard.querySelector('.card-tag').style.cursor = 'default'; // 归档标签不可点击
+
+            // 归档卡片内容区域调整
+            newCard.querySelector('.card-content').style.paddingRight = '10px';
+            newCard.querySelector('.card-content-wrapper').style.flexDirection = 'column'; // 保持垂直排列
+            newCard.querySelector('.card-content-wrapper').style.justifyContent = 'center';
+            newCard.querySelector('.card-type').style.display = 'none'; // 归档卡片不显示类型
+
+            archiveContent.appendChild(newCard);
+        } else {
+            // 主列表卡片样式和事件
+            newCard.setAttribute('title', '右击完成事项');
+            newCard.style.borderLeft = `2px solid ${tagColor}`; // 设置左侧边框颜色
+
+            const cardContent = newCard.querySelector('.card-content');
+            cardContent.addEventListener('dblclick', handleDoubleClick);
+
+            const cardTag = newCard.querySelector('.card-tag');
+            cardTag.addEventListener('dblclick', handleTagDoubleClick);
+
+            // 添加删除按钮 (作为 card 的直接子元素)
+            const deleteButton = document.createElement('button');
+            deleteButton.classList.add('delete-button');
+            deleteButton.innerHTML = '&#10005;'; // X 符号
+            deleteButton.setAttribute('title', '删除此事项');
+            newCard.appendChild(deleteButton); // 将删除按钮添加到 card 内部
+
+            deleteButton.addEventListener('click', handleDeleteClick);
+
+            cardList.appendChild(newCard);
+        }
+        placeDivider(); // 添加新卡片后更新分割线位置
+        updateCardTypes(); // 新增卡片后更新类型文案
+        
+        // 更新统计信息
+        updateStatistics();
+        
+        return newCard;
+    }
+
+    // 双击事件处理函数 (卡片内容编辑)
+    function handleDoubleClick(e) {
+        const cardContent = e.currentTarget;
+        const card = cardContent.closest('.card');
+        const clickedElement = e.target;
+
+        if (card.closest('.archive-module')) {
+            return;
+        }
+
+        // 确保双击的是 card-title
+        const h2 = clickedElement.closest('.card-title');
+        if (!h2) return;
+
+        if (isEditing || isDragging || isColorPicking) {
+            return;
+        }
+
+        isEditing = true;
+
+        // --- 修改: 从 data-full-content 获取完整文本 ---
+        const fullText = card.dataset.fullContent || h2.textContent;
+        const textarea = document.createElement('textarea');
+        textarea.className = 'card-title-textarea'; // 使用新定义的类
+        textarea.value = fullText;
+        textarea.placeholder = '输入事项内容';
+        textarea.rows = 1;
+
+        h2.parentNode.replaceChild(textarea, h2);
+        textarea.focus();
+        textarea.select();
+
+        function adjustTextareaHeight() {
+            textarea.style.height = 'auto';
+            textarea.style.height = textarea.scrollHeight + 'px';
+        }
+
+        adjustTextareaHeight();
+        textarea.addEventListener('input', adjustTextareaHeight);
+
+        // 阻止事件冒泡到父级卡片，防止触发 mousedown 拖拽事件
+        textarea.addEventListener('mousedown', (event) => {
+            event.stopPropagation();
+        });
+        textarea.addEventListener('mouseup', (event) => {
+            event.stopPropagation();
+        });
+        textarea.addEventListener('mousemove', (event) => {
+            event.stopPropagation();
+        });
+
+
+        const saveEdit = () => {
+            // 在保存前移除事件监听器，避免重复调用
+            textarea.removeEventListener('blur', saveEdit);
+            textarea.removeEventListener('keydown', handleKeydown);
+
+            if (textarea.parentNode) {
+                let newText = textarea.value.trim();
+                if (newText === '') {
+                    newText = '无标题事项';
+                }
+
+                // --- 新增: 保存完整内容并限制显示内容 ---
+                card.dataset.fullContent = newText;
+                if (newText.length > TITLE_MAX_LENGTH) {
+                    h2.textContent = newText.substring(0, TITLE_MAX_LENGTH) + '...';
+                } else {
+                    h2.textContent = newText;
+                }
+
+                textarea.parentNode.replaceChild(h2, textarea);
+                isEditing = false;
+                textarea.removeEventListener('input', adjustTextareaHeight);
+                saveWorkspaceData(); // 编辑后保存数据
+                updateDetailsPanel(); // 更新详细信息面板标题
+            }
+        };
+
+        // --- 核心修复：按下回车键时直接保存并退出编辑 ---
+        const handleKeydown = (event) => {
+            if (event.key === 'Enter' && !event.shiftKey) {
+                event.preventDefault(); // 阻止默认的换行行为
+                saveEdit(); // 直接调用保存函数
+            }
+        };
+
+        textarea.addEventListener('blur', saveEdit);
+        textarea.addEventListener('keydown', handleKeydown);
+    }
+
+    // 双击事件处理函数 (标签头颜色修改)
+    function handleTagDoubleClick(e) {
+        const cardTag = e.currentTarget;
+        const card = cardTag.closest('.card');
+
+        if (card.closest('.archive-module')) {
+            return;
+        }
+
+        e.stopPropagation();
+
+        if (isEditing || isDragging) {
+            return;
+        }
+
+        isColorPicking = true;
+
+        const colorInput = document.createElement('input');
+        colorInput.type = 'color';
+        colorInput.style.position = 'fixed';
+
+        let posX = e.clientX;
+        let posY = e.clientY;
+
+        if (posX + 200 > window.innerWidth) {
+            posX = window.innerWidth - 200;
+        }
+        if (posY + 30 > window.innerHeight) {
+            posY = window.innerHeight - 30;
+        }
+        if (posX < 0) posX = 0;
+        if (posY < 0) posY = 0;
+
+        colorInput.style.left = `${posX}px`;
+        colorInput.style.top = `${posY}px`;
+        colorInput.style.opacity = '0';
+        colorInput.style.pointerEvents = 'none';
+        colorInput.style.zIndex = '9999';
+
+        colorInput.value = rgbToHex(cardTag.style.backgroundColor) || '#ff9800';
+
+        document.body.appendChild(colorInput);
+
+        setTimeout(() => {
+            colorInput.style.pointerEvents = 'auto';
+            colorInput.click();
+        }, 50);
+
+        colorInput.addEventListener('input', (event) => {
+            cardTag.style.backgroundColor = event.target.value;
+            const card = cardTag.closest('.card');
+            if (card) {
+                card.style.borderLeftColor = event.target.value;
+                // 更新 data-original-tag-color 属性
+                card.dataset.originalTagColor = event.target.value;
+            }
+            saveWorkspaceData(); // 颜色修改后保存数据
+        });
+
+        colorInput.addEventListener('change', () => {
+            if (document.body.contains(colorInput)) {
+                document.body.removeChild(colorInput);
+                isColorPicking = false;
+            }
+        });
+        colorInput.addEventListener('blur', () => {
+            if (document.body.contains(colorInput)) {
+                document.body.removeChild(colorInput);
+                isColorPicking = false;
+            }
+        });
+    }
+
+    // 新增：删除按钮点击事件处理函数
+    function handleDeleteClick(e) {
+        e.stopPropagation(); // 阻止事件冒泡到卡片，避免触发拖拽或选中
+
+        const deleteButton = e.currentTarget;
+        const cardToDelete = deleteButton.closest('.card');
+
+        if (cardToDelete) {
+            deleteCard(cardToDelete);
+        }
+    }
+
+    // 辅助函数：RGB颜色转HEX颜色 (用于兼容获取到的 background-color)
+    function rgbToHex(rgb) {
+        if (rgb.startsWith('#')) return rgb;
+        const parts = rgb.match(/^rgb\((\d+),\s*(\d+),\s*(\d+)\)$/);
+        if (!parts) return '';
+
+        function toHex(c) {
+            const hex = parseInt(c).toString(16);
+            return hex.length === 1 ? "0" + hex : hex;
+        }
+        return "#" + toHex(parts[1]) + toHex(parts[2]) + toHex(parts[3]);
+    }
+
+    // 统一的卡片选中函数
+    function selectCard(card) {
+        // 如果之前有选中的卡片，并且详细信息面板内容有修改，则保存一次
+        if (selectedCard && detailsContent.getAttribute('contenteditable') === 'true' && detailsContent.innerHTML !== (selectedCard.dataset.details || '')) {
+            selectedCard.dataset.details = detailsContent.innerHTML;
+            saveWorkspaceData();
+        }
+
+        if (selectedCard) {
+            selectedCard.classList.remove('selected');
+        }
+        selectedCard = card;
+        selectedCard.classList.add('selected');
+        updateDetailsPanel();
+        
+        // 新增：保存选中卡片到 localStorage
+        if (currentWorkspaceId && selectedCard) {
+            // 使用卡片标题作为标识（如果有多个相同标题，就匹配第一个）
+            const cardTitle = selectedCard.dataset.fullContent || selectedCard.querySelector('.card-title').textContent;
+            const storageKey = `selectedCard_${currentWorkspaceId}`;
+            localStorage.setItem(storageKey, cardTitle);
+        }
+    }
+
+    // 卡片点击选中事件 (统一处理)
+    document.addEventListener('click', (e) => {
+        const card = e.target.closest('.card');
+
+        // 如果点击的是卡片，并且不是在拖拽中或编辑中
+        if (card && !isDragging && !isEditing && !isColorPicking) {
+            // 如果点击的是归档模块的卡片，并且点击的是恢复按钮
+            if (card.closest('.archive-module') && e.target.closest('.restore-button')) {
+                // 恢复按钮的点击事件已经有单独的监听器处理，这里不处理
+                return;
+            }
+
+            // 选中卡片
+            selectCard(card);
+        }
+    });
+
+    // --- 核心修改：双击详细信息面板标题进行编辑 ---
+    detailsTitle.addEventListener('click', () => { // 从 'dblclick' 改为 'click'
+        if (!selectedCard || isEditing) {
+            return;
+        }
+
+        isEditing = true;
+
+        // 获取完整标题内容
+        const currentTitle = selectedCard.dataset.fullContent || detailsTitle.textContent;
+
+        const textarea = document.createElement('textarea');
+        textarea.className = 'details-title-textarea'; // 使用新的CSS类
+        textarea.value = currentTitle;
+
+        // 替换 H2 为 textarea
+        detailsTitle.parentNode.replaceChild(textarea, detailsTitle);
+        textarea.focus();
+
+        // 自动调整 textarea 高度
+        function adjustTextareaHeight() {
+            textarea.style.height = 'auto'; // 先重置高度
+            textarea.style.height = textarea.scrollHeight + 'px';
+        }
+
+        adjustTextareaHeight();
+        textarea.addEventListener('input', adjustTextareaHeight);
+
+        // 阻止事件冒泡到父级，防止拖拽
+        textarea.addEventListener('mousedown', (event) => { event.stopPropagation(); });
+        textarea.addEventListener('mouseup', (event) => { event.stopPropagation(); });
+        textarea.addEventListener('mousemove', (event) => { event.stopPropagation(); });
+
+        const saveTitleEdit = () => {
+            // 在保存前移除事件监听器，避免重复调用
+            textarea.removeEventListener('blur', saveTitleEdit);
+            textarea.removeEventListener('keydown', handleKeydownDetails);
+
+            if (textarea.parentNode) {
+                let newTitle = textarea.value.trim();
+                if (newTitle === '') {
+                    newTitle = '无标题事项';
+                }
+
+                // 更新卡片和详细信息面板的完整标题
+                if (selectedCard) {
+                    selectedCard.dataset.fullContent = newTitle;
+                    const h2Element = selectedCard.querySelector('.card-title'); // 使用新类名
+                    // 更新卡片上的显示标题（截断后的）
+                    if (newTitle.length > TITLE_MAX_LENGTH) {
+                        h2Element.textContent = newTitle.substring(0, TITLE_MAX_LENGTH) + '...';
+                    } else {
+                        h2Element.textContent = newTitle;
+                    }
+                }
+
+                // 替换 textarea 回 H2
+                textarea.parentNode.replaceChild(detailsTitle, textarea);
+
+                // 更新详细信息面板的显示标题（完整标题）
+                // 同样应用长度限制
+                if (newTitle.length > TITLE_MAX_LENGTH) {
+                    detailsTitle.textContent = newTitle.substring(0, TITLE_MAX_LENGTH) + '...';
+                } else {
+                    detailsTitle.textContent = newTitle;
+                }
+
+                isEditing = false;
+                textarea.removeEventListener('input', adjustTextareaHeight); // 移除监听器
+                saveWorkspaceData(); // 保存数据
+            }
+        };
+
+        // --- 核心修复：按下回车键时直接保存并退出编辑 ---
+        const handleKeydownDetails = (event) => {
+            if (event.key === 'Enter' && !event.shiftKey) {
+                event.preventDefault(); // 阻止默认的换行行为
+                saveTitleEdit(); // 直接调用保存函数
+            }
+        };
+
+        textarea.addEventListener('blur', saveTitleEdit);
+        textarea.addEventListener('keydown', handleKeydownDetails);
+    });
+
+    // 详细信息面板内容修改事件 (input)
+    detailsContent.addEventListener('input', () => {
+        if (selectedCard) {
+            // 实时更新卡片的 data-details 属性
+            selectedCard.dataset.details = detailsContent.innerHTML;
+            updateCardSummary(selectedCard); // 更新卡片摘要
+        }
+    });
+
+    // 详细信息面板内容失去焦点时，如果内容有变化，则记录快照和保存
+    detailsContent.addEventListener('blur', () => {
+        if (selectedCard && detailsContent.innerHTML !== (selectedCard.dataset.details || '')) {
+            saveWorkspaceData(); // 保存数据
+            selectedCard.dataset.details = detailsContent.innerHTML;
+        }
+    });
+
+
+    // 更新详细信息面板
+    function updateDetailsPanel() {
+        if (selectedCard) {
+            // --- 修改: 从 data-full-content 获取完整标题 ---
+            const cardTitle = selectedCard.dataset.fullContent || selectedCard.querySelector('.card-title').textContent;
+            const cardDetails = selectedCard.dataset.details || '';
+
+            // --- 新增: 在详细信息面板标题处应用长度限制 ---
+            if (cardTitle.length > TITLE_MAX_LENGTH) {
+                detailsTitle.textContent = cardTitle.substring(0, TITLE_MAX_LENGTH) + '...';
+            } else {
+                detailsTitle.textContent = cardTitle;
+            }
+
+            detailsContent.innerHTML = cardDetails;
+            detailsContent.setAttribute('contenteditable', 'true');
+            detailsContent.setAttribute('data-placeholder', '');
+            editorToolbar.style.display = 'flex'; // 显示工具栏
+        } else {
+            detailsTitle.textContent = '请选择一张卡片';
+            detailsContent.innerHTML = '';
+            detailsContent.setAttribute('contenteditable', 'false');
+            detailsContent.setAttribute('data-placeholder', '请选择一张卡片查看详细信息...');
+            editorToolbar.style.display = 'none'; // 隐藏工具栏
+        }
+    }
+
+    // --- 新增：富文本编辑器功能实现 ---
+    editorToolbar.addEventListener('click', (e) => {
+        const button = e.target.closest('button.format-button');
+        if (button) {
+            e.preventDefault(); // 阻止按钮点击导致失焦
+            const command = button.dataset.command;
+            const value = button.dataset.value;
+
+            // 确保焦点在 contenteditable 区域内
+            detailsContent.focus();
+
+            // 执行富文本命令
+            if (command === 'formatBlock' && value) {
+                document.execCommand(command, false, value);
+            } else if (command) {
+                document.execCommand(command, false, null);
+            }
+
+            // 执行命令后立即保存数据和快照
+            if (selectedCard) {
+                selectedCard.dataset.details = detailsContent.innerHTML;
+                updateCardSummary(selectedCard);
+                saveWorkspaceData();
+            }
+        }
+    });
+
+
+    // 点击添加卡片按钮
+    addCardButton.addEventListener('click', () => {
+        if (selectedCard) {
+            selectedCard.classList.remove('selected');
+            selectedCard = null;
+        }
+        const newCard = createNewCard('新事项', '点击此处编辑详细信息，可以使用上面的工具栏进行<b>富文本编辑</b>。'); // 新增默认详细信息
+        selectCard(newCard); // 自动选中新创建的卡片
+        saveWorkspaceData(); // 新增卡片后保存数据
+    });
+
+    cardList.addEventListener('mousedown', (e) => {
+        if (e.button !== 0) {
+            return;
+        }
+
+        const target = e.target.closest('.card');
+        const clickedTag = e.target.closest('.card-tag');
+        const clickedTextarea = e.target.tagName.toLowerCase() === 'textarea';
+        const clickedDeleteButton = e.target.closest('.delete-button'); // 新增：判断是否点击了删除按钮
+        const clickedContentEditable = e.target.closest('[contenteditable="true"]'); // 新增：判断是否点击了 contenteditable 区域
+
+        // 如果点击的是卡片，但点击的是标签、文本编辑区、删除按钮或 contenteditable 区域，则不触发拖拽
+        if (!target || target.closest('.archive-module') || clickedTag || clickedTextarea || clickedDeleteButton || clickedContentEditable) {
+            return;
+        }
+
+        if (isEditing || isColorPicking) {
+            e.preventDefault();
+            e.stopPropagation();
+            return;
+        }
+
+        const targetCard = target;
+        if (targetCard) {
+            e.preventDefault();
+
+            if (e.target.draggable) {
+                e.target.draggable = false;
+            }
+
+            draggedItem = targetCard;
+            isDragging = false;
+
+            initialMouseX = e.clientX;
+            initialMouseY = e.clientY;
+
+            originalItemRect = draggedItem.getBoundingClientRect();
+
+            const mainCards = Array.from(cardList.children).filter(child => child.classList.contains('card'));
+            const originalIndex = mainCards.indexOf(draggedItem);
+            draggedItem.dataset.originalIndex = originalIndex;
+
+            originalNextSibling = draggedItem.nextSibling;
+
+            document.documentElement.style.setProperty('--drag-width', `${originalItemRect.width}px`);
+            document.documentElement.style.setProperty('--drag-height', `${originalItemRect.height}px`);
+            document.documentElement.style.setProperty('--drag-start-x', `${originalItemRect.left}px`);
+            document.documentElement.style.setProperty('--drag-start-y', `${originalItemRect.top}px`);
+
+            document.addEventListener('mousemove', onMouseMove);
+            document.addEventListener('mouseup', onMouseUp);
+        }
+    });
+
+    // 鼠标移动事件
+    function onMouseMove(e) {
+        if (!draggedItem) return;
+
+        const currentMouseOffsetX = e.clientX - initialMouseX;
+        const currentMouseOffsetY = e.clientY - initialMouseY;
+
+        if (!isDragging && (Math.abs(currentMouseOffsetX) > 5 || Math.abs(currentMouseOffsetY) > 5)) {
+            isDragging = true;
+            draggedItem.classList.add('is-dragging');
+            removeAllPlaceholders();
+            const { width, height } = getStandardCardDimensions();
+            createPlaceholder(width, height);
+            cardList.insertBefore(placeholder, draggedItem);
+            captureFirstState();
+            animateCardsFLIP();
+        }
+
+        if (isDragging) {
+            const newX = currentMouseOffsetX;
+            const newY = currentMouseOffsetY;
+            document.documentElement.style.setProperty('--x', `${newX}px`);
+            document.documentElement.style.setProperty('--y', `${newY}px`);
+            updatePlaceholderPosition(e.clientX, e.clientY);
+        }
+    }
+
+    // 捕获所有非拖拽元素的 First State
+    function captureFirstState() {
+        Array.from(cardList.children).forEach(child => {
+            if (child !== draggedItem && child !== placeholder && child !== restorePlaceholder && !child.classList.contains('card-divider')) {
+                child._initialRect = child.getBoundingClientRect();
+            }
+        });
+    }
+
+    // 更新占位符位置的逻辑
+    function updatePlaceholderPosition(mouseX, mouseY) {
+        const currentChildren = Array.from(cardList.children).filter(child => child !== draggedItem && child !== restorePlaceholder && child !== placeholder && !child.classList.contains('card-divider'));
+
+        let newPlaceholderIndex = currentChildren.length;
+
+        for (let i = 0; i < currentChildren.length; i++) {
+            const item = currentChildren[i];
+            if (item === placeholder) continue;
+
+            const rect = item.getBoundingClientRect();
+            const itemCenterY = rect.top + rect.height / 2;
+
+            if (mouseY < itemCenterY) {
+                newPlaceholderIndex = i;
+                break;
+            }
+        }
+
+        if (newPlaceholderIndex !== currentPlaceholderIndex) {
+            captureFirstState();
+            currentPlaceholderIndex = newPlaceholderIndex;
+
+            if (newPlaceholderIndex === currentChildren.length) {
+                cardList.appendChild(placeholder);
+            } else {
+                const targetElement = currentChildren[newPlaceholderIndex];
+                if (targetElement && cardList.contains(targetElement)) {
+                    cardList.insertBefore(placeholder, targetElement);
+                } else {
+                    cardList.appendChild(placeholder);
+                }
+            }
+
+            animateCardsFLIP();
+        }
+    }
+
+    // 核心动画逻辑：FLIP
+    function animateCardsFLIP() {
+        const allItems = Array.from(cardList.children);
+
+        allItems.forEach(item => {
+            if (item === draggedItem || item === placeholder || item === restorePlaceholder || item.classList.contains('card-divider')) return;
+
+            const firstRect = item._initialRect;
+            const lastRect = item.getBoundingClientRect();
+
+            if (!firstRect || (firstRect.left === lastRect.left && firstRect.top === lastRect.top)) {
+                item.style.transform = '';
+                item.style.transition = '';
+                return;
+            }
+
+            const deltaX = firstRect.left - lastRect.left;
+            const deltaY = firstRect.top - lastRect.top;
+
+            item.style.transition = 'none';
+            item.style.transform = `translate(${deltaX}px, ${deltaY}px)`;
+
+            item.offsetWidth;
+
+            item.style.transition = 'transform 0.2s ease-out';
+            item.style.transform = '';
+        });
+    }
+
+    // 鼠标抬起事件
+    function onMouseUp() {
+        if (draggedItem && isDragging) {
+            if (placeholder && placeholder.parentNode) {
+                cardList.insertBefore(draggedItem, placeholder);
+                removeAllPlaceholders(); // 统一移除所有占位符
+            } else {
+                // 如果没有占位符，将其放回原始位置
+                cardList.insertBefore(draggedItem, originalNextSibling);
+            }
+
+            draggedItem.classList.remove('is-dragging');
+            draggedItem = null;
+            isDragging = false;
+            originalNextSibling = null;
+            originalItemRect = null;
+            currentPlaceholderIndex = -1;
+
+            document.documentElement.style.removeProperty('--x');
+            document.documentElement.style.removeProperty('--y');
+            document.documentElement.style.removeProperty('--drag-width');
+            document.documentElement.style.removeProperty('--drag-height');
+            document.documentElement.style.removeProperty('--drag-start-x');
+            document.documentElement.style.removeProperty('--drag-start-y');
+
+            Array.from(cardList.children).forEach(child => {
+                child.style.transition = '';
+                child.style.transform = '';
+                delete child._initialRect;
+            });
+
+            placeDivider(); // 拖拽结束后，重新放置分割线
+            updateCardTypes(); // 拖拽后更新卡片类型
+            saveWorkspaceData(); // 拖拽完成后保存数据
+
+        } else if (draggedItem && !isDragging) {
+            // 单击卡片时的选中逻辑已经交给统一的点击事件处理
+        }
+
+        draggedItem = null;
+        originalNextSibling = null;
+        originalItemRect = null;
+
+        document.removeEventListener('mousemove', onMouseMove);
+        document.removeEventListener('mouseup', onMouseUp);
+    }
+
+    //将指定的卡片从主列表移动到归档区，并更新其样式和事件。
+    function archiveCard(cardToArchive) {
+        // 1. 核心判断：确保卡片存在，并且在主列表中，并且是主列表中的第一张卡片
+        if (!cardToArchive) {
+            console.error('错误：尝试归档一个不存在的卡片。');
+            return;
+        }
+
+        if (cardToArchive.closest('.archive-module')) {
+            // 使用 .closest() 判断卡片是否已经在归档区
+            console.warn('警告：该卡片已在归档区，无法重复归档。');
+            return;
+        }
+
+        // 新增：检查有序模式限制
+        const currentWorkspace = workspaces[currentWorkspaceId];
+        if (currentWorkspace.isOrdered) {
+            // 有序模式：只有第一个任务可以完成
+            const firstCard = cardList.querySelector('.card');
+            if (cardToArchive !== firstCard) {
+                alert('有序任务工作区无法提前完成非第一个任务！');
+                return;
+            }
+        }
+
+        // 检查卡片是否在主列表，并且是第一个（在有序模式下）
+        // 对于无序模式，任何卡片都可以归档
+        if (!cardList.contains(cardToArchive)) {
+            console.warn('警告：该卡片不在主列表中，无法归档。');
+            return;
+        }
+
+        // 从这里开始，代码和之前一样，执行实际的归档操作
+        const wasSelected = selectedCard === cardToArchive;
+
+        cardList.removeChild(cardToArchive);
+        removeAllDividers();
+
+        cardToArchive.style.cssText = '';
+        cardToArchive.classList.remove('is-dragging', 'selected');
+        cardToArchive.removeAttribute('title');
+        cardToArchive.style.borderLeftColor = '';
+
+        const cardContentElement = cardToArchive.querySelector('.card-content');
+        if (cardContentElement) {
+            cardContentElement.removeEventListener('dblclick', handleDoubleClick);
+        }
+        const cardTagElement = cardToArchive.querySelector('.card-tag');
+        if (cardTagElement) {
+            cardTagElement.removeEventListener('dblclick', handleTagDoubleClick);
+        }
+
+        const existingDeleteButton = cardToArchive.querySelector('.delete-button');
+        if (existingDeleteButton) {
+            existingDeleteButton.removeEventListener('click', handleDeleteClick);
+            cardToArchive.removeChild(existingDeleteButton);
+        }
+
+        if (cardTagElement) {
+            cardTagElement.style.backgroundColor = '#888';
+            cardTagElement.style.cursor = 'default';
+        }
+
+        const restoreButton = document.createElement('button');
+        restoreButton.classList.add('restore-button');
+        restoreButton.setAttribute('title', '恢复到主列表');
+        restoreButton.innerHTML = '&#8635;';
+        cardToArchive.appendChild(restoreButton);
+
+        const typeElement = cardToArchive.querySelector('.card-type');
+        if (typeElement) typeElement.style.display = 'none';
+
+        archiveContent.appendChild(cardToArchive);
+        archiveModule.classList.remove('collapsed');
+
+        placeDivider();
+        updateCardTypes();
+        saveWorkspaceData();
+        
+        // 更新统计信息
+        updateStatistics();
+
+        if (wasSelected) {
+            const firstCardAfterArchive = cardList.querySelector('.card');
+            if (firstCardAfterArchive) {
+                selectCard(firstCardAfterArchive);
+            } else {
+                selectedCard = null;
+                updateDetailsPanel();
+            }
+        }
+    }
+
+    // 右键归档功能 (主列表卡片右键归档)
+    cardList.addEventListener('contextmenu', function (e) {
+        const clickedCard = e.target.closest('.card');
+
+        // 确保点击的是主列表的卡片
+        if (clickedCard && !clickedCard.closest('.archive-module')) {
+            // 新增：检查有序模式限制
+            const currentWorkspace = workspaces[currentWorkspaceId];
+            if (currentWorkspace.isOrdered) {
+                // 有序模式：只有第一个任务可以完成
+                const firstCard = cardList.querySelector('.card');
+                if (clickedCard !== firstCard) {
+                    alert('有序任务工作区无法提前完成非第一个任务！');
+                    e.preventDefault();
+                    return;
+                }
+            }
+            
+            // 阻止默认的右键菜单
+            e.preventDefault();
+
+            // 调用通用的归档函数，并传入被点击的卡片
+            archiveCard(clickedCard);
+        }
+    });
+
+    // 归档卡片恢复按钮点击功能
+    archiveContent.addEventListener('click', function (e) {
+        const restoreButton = e.target.closest('.restore-button');
+        if (restoreButton) {
+            const clickedArchivedCard = restoreButton.closest('.card');
+
+            // 确保点击的不是卡片内容区域
+            if (e.target.closest('.card-content') && !e.target.closest('.restore-button')) {
+                // 如果点击的是卡片内容而不是恢复按钮，则将其标记为选中
+                selectCard(clickedArchivedCard);
+                return;
+            }
+
+            removeAllPlaceholders();
+
+            if (clickedArchivedCard) {
+                archiveContent.removeChild(clickedArchivedCard);
+
+                // 获取归档前保存的原始颜色
+                const originalTagColor = clickedArchivedCard.dataset.originalTagColor || '#ff9800'; // 如果没有保存，使用默认色
+
+                clickedArchivedCard.style.cssText = '';
+                clickedArchivedCard.style.cursor = 'grab';
+
+                // 添加 title 属性
+                clickedArchivedCard.setAttribute('title', '右击完成事项');
+
+                // 使用原始颜色恢复标签头和左侧边框
+                clickedArchivedCard.querySelector('.card-tag').style.backgroundColor = originalTagColor;
+                clickedArchivedCard.style.borderLeft = `2px solid ${originalTagColor}`;
+                clickedArchivedCard.querySelector('.card-tag').style.cursor = 'pointer';
+
+                // 恢复类型文案的显示
+                const typeElement = clickedArchivedCard.querySelector('.card-type');
+                if (typeElement) typeElement.style.display = 'block';
+
+                // 移除恢复按钮
+                clickedArchivedCard.removeChild(restoreButton);
+
+                // 恢复时重新绑定双击事件到 card-content 和 card-tag
+                const newCardContent = clickedArchivedCard.querySelector('.card-content');
+                if (newCardContent) {
+                    newCardContent.addEventListener('dblclick', handleDoubleClick);
+                }
+                const newCardTag = clickedArchivedCard.querySelector('.card-tag');
+                if (newCardTag) {
+                    newCardTag.addEventListener('dblclick', handleTagDoubleClick);
+                    newCardTag.style.cursor = 'pointer'; // 恢复可点击状态
+                }
+                // 恢复删除按钮 (作为 card 的直接子元素)
+                const deleteButton = document.createElement('button');
+                deleteButton.classList.add('delete-button');
+                deleteButton.innerHTML = '&#10005;';
+                deleteButton.setAttribute('title', '删除此事项');
+                clickedArchivedCard.appendChild(deleteButton); // 将删除按钮添加到 card 内部
+                deleteButton.addEventListener('click', handleDeleteClick);
+
+                // 恢复时将卡片插入到第一个位置
+                cardList.insertBefore(clickedArchivedCard, cardList.firstChild);
+
+                clickedArchivedCard.style.opacity = '0';
+                setTimeout(() => {
+                    clickedArchivedCard.style.transition = 'opacity 0.3s ease-in-out, transform 0.2s ease-out';
+                    clickedArchivedCard.style.opacity = '1';
+                }, 0);
+
+                placeDivider(); // 恢复后重新放置分割线
+                updateCardTypes(); // 恢复后更新卡片类型文案
+                saveWorkspaceData(); // 恢复后保存数据
+                
+                // 更新统计信息
+                updateStatistics();
+
+                // 自动选中恢复的卡片
+                selectCard(clickedArchivedCard);
+            }
+        }
+    });
+
+    // 恢复按钮的鼠标悬停事件监听 (显示占位符)
+    archiveContent.addEventListener('mouseenter', function (e) {
+        const restoreButton = e.target.closest('.restore-button');
+        if (restoreButton) {
+            const archivedCard = restoreButton.closest('.card');
+            if (archivedCard && !isDragging && !isEditing && !isColorPicking) {
+                const { width, height } = getStandardCardDimensions();
+
+                removeAllPlaceholders();
+
+                createRestorePlaceholder(width, height);
+                cardList.insertBefore(restorePlaceholder, cardList.firstChild);
+            }
+        }
+    }, true);
+
+    // 恢复按钮的鼠标移出事件监听 (移除占位符)
+    archiveContent.addEventListener('mouseleave', function (e) {
+        const relatedTarget = e.relatedTarget;
+        if (e.target.closest('.restore-button') && (!relatedTarget || !e.target.closest('.restore-button').contains(relatedTarget))) {
+            removeAllPlaceholders();
+        }
+    }, true);
+
+    // 捕获阶段的 mouseout，更精确地处理从按钮移出
+    archiveContent.addEventListener('mouseout', function (e) {
+        const restoreButton = e.target.closest('.restore-button');
+        if (restoreButton && !restoreButton.contains(e.relatedTarget)) {
+            removeAllPlaceholders();
+        }
+    }, true);
+
+    // --- 新增：核心删除逻辑函数 ---
+    function deleteCard(card) {
+        console.log("--- deleteCard: 尝试删除卡片 ---", card);
+        if (!card) {
+            console.warn("--- deleteCard: 传入的卡片为 null 或 undefined，无法删除。");
+            return;
+        }
+
+        const parentList = card.parentNode;
+        const wasSelected = selectedCard === card;
+
+        parentList.removeChild(card);
+        console.log("--- deleteCard: 卡片已从DOM中移除。");
+
+        // 如果删除的是主列表的卡片，重新放置分割线
+        if (parentList === cardList) {
+            placeDivider();
+            updateCardTypes(); // 删除后更新类型文案
+            console.log("--- deleteCard: 已更新分割线和卡片类型。");
+        }
+
+        saveWorkspaceData(); // 删除卡片后保存数据
+        
+        // 更新统计信息
+        updateStatistics();
+
+        // 如果删除的是选中的卡片，则自动选中下一个卡片（如果存在）
+        if (wasSelected) {
+            const firstCardAfterDelete = cardList.querySelector('.card') || archiveContent.querySelector('.card');
+            if (firstCardAfterDelete) {
+                selectCard(firstCardAfterDelete);
+                console.log("--- deleteCard: 已自动选中下一个卡片。");
+            } else {
+                // 如果所有列表都为空，则清空选中
+                selectedCard = null;
+                updateDetailsPanel();
+                console.log("--- deleteCard: 所有卡片已删除，清空选中状态。");
+            }
+        }
+        console.log("--- deleteCard: 删除操作完成。");
+    }
+
+    // --- 新增：辅助函数 _collectCurrentCardsData 来收集当前 DOM 中的卡片数据 ---
+    function _collectCurrentCardsData() {
+        const allCardsData = [];
+
+        // 收集主列表中的卡片数据
+        document.querySelectorAll('.card-list .card').forEach(card => {
+            const content = card.dataset.fullContent || card.querySelector('.card-title').textContent;
+            const tagColor = rgbToHex(card.querySelector('.card-tag').style.backgroundColor);
+            const originalTagColor = card.dataset.originalTagColor || tagColor;
+            const details = card.dataset.details || '';
+            allCardsData.push({
+                content: content,
+                tagColor: tagColor || '#ff9800',
+                isArchived: false,
+                originalTagColor: originalTagColor,
+                details: details
+            });
+        });
+
+        // 收集归档列表中的卡片数据
+        document.querySelectorAll('.archive-content .card').forEach(card => {
+            const content = card.dataset.fullContent || card.querySelector('.card-title').textContent;
+            const tagColor = rgbToHex(card.querySelector('.card-tag').style.backgroundColor);
+            const originalTagColor = card.dataset.originalTagColor || tagColor;
+            const details = card.dataset.details || '';
+            allCardsData.push({
+                content: content,
+                tagColor: tagColor || '#888',
+                isArchived: true,
+                originalTagColor: originalTagColor,
+                details: details
+            });
+        });
+        console.log('--- _collectCurrentCardsData: 收集到的数据:', JSON.parse(JSON.stringify(allCardsData))); // Added log here
+        return allCardsData;
+    }
+
+    // --- 详细信息内容区的 blur 事件处理，用于保存快照和数据 ---
+    // 定义一个独立的函数，以便可以添加/移除监听器
+    // --- 键盘事件监听器 ---
+    document.addEventListener('keydown', (e) => {
+        console.log('--- 键盘事件: 检测到按键。键:', e.key, 'Ctrl:', e.ctrlKey, 'Meta (Command):', e.metaKey, 'Target:', e.target.tagName.toLowerCase());
+
+        // 检查当前焦点是否在可编辑元素上 (textarea 或 contenteditable div)
+        const isTargetEditable = (
+            e.target.tagName.toLowerCase() === 'textarea' ||
+            (e.target.hasAttribute('contenteditable') && e.target.getAttribute('contenteditable') === 'true')
+        );
+
+        // Ctrl+S 阻止默认保存行为
+        if (e.key.toUpperCase() === 'S' && (e.ctrlKey || e.metaKey)) { // e.key.toUpperCase() 解决大小写问题
+            e.preventDefault(); // 阻止浏览器默认的撤销行为
+            return; // 处理完撤销，直接返回
+        }
+
+        // 只有当焦点不在可编辑元素上，并且有选中的卡片时，才允许 Delete 键删除卡片
+        if (!isTargetEditable && selectedCard && e.key === 'Delete') {
+            e.preventDefault(); // 阻止浏览器默认的删除行为 (例如在某些输入框中的删除行为)
+            console.log('--- 键盘事件: 接收到 Delete 键，并且不在编辑模式，执行卡片删除。');
+            deleteCard(selectedCard);
+        }
+    });
+
+    // --- 新增：更新统计信息函数 ---
+    function updateStatistics() {
+        // 计算未完成事项数量（主列表中的卡片）
+        const uncompletedCards = document.querySelectorAll('.card-list .card');
+        const uncompletedCount = uncompletedCards.length;
+        
+        // 计算已完成事项数量（归档模块中的卡片）
+        const completedCards = document.querySelectorAll('.archive-content .card');
+        const completedCount = completedCards.length;
+        
+        // 计算总事项数量
+        const totalCount = uncompletedCount + completedCount;
+        
+        // 计算完成百分比（已完成事项占总事项的比例）
+        let completedPercent = 0;
+        if (totalCount > 0) {
+            completedPercent = (completedCount / totalCount) * 100;
+        }
+        
+        // 更新统计区域的显示
+        completedPercentElement.textContent = `${completedPercent.toFixed(2)}%`;
+        totalCountElement.textContent = totalCount;
+        completedCountElement.textContent = completedCount;
+        uncompletedCountElement.textContent = uncompletedCount;
+        
+        // 更新进度条（显示完成进度）
+        progressBarFill.style.width = `${completedPercent}%`;
+    }
+
+    // 创建默认卡片的函数
+    function createDefaultCards() {
+        const defaultCards = [
+            {
+                "content": "项目启动：前端界面优化",
+                "details": "<h3><b>项目背景</b></h3><p>为了提升用户体验，我们决定对当前产品的<b>前端界面</b>进行全面优化。此阶段将主要聚焦于视觉设计、交互流畅性及响应式布局。</p><ul><li><b>目标：</b>提高用户满意度20%，减少跳出率10%。</li><li><b>关键指标：</b>页面加载速度、用户操作路径、设计一致性。</li></ul><h3><b>详细任务清单</b></h3><ol><li><b>设计阶段（本周）</b><ul><li>收集用户反馈并分析痛点。</li><li>完成新版UI/UX原型设计。</li><li>与后端团队同步API接口需求。</li></ul></li><li><b>开发阶段（下周）</b><ul><li>组件库升级与维护。</li><li>实现响应式布局和跨浏览器兼容。</li><li>集成新的动画效果。</li></ul></li><li><b>测试与部署（两周后）</b><ul><li>进行单元测试和集成测试。</li><li>用户验收测试（UAT）。</li><li>生产环境部署与监控。</li></ul><p><b>注意事项：</b>请各位成员密切关注项目进度，并及时在会议中反馈遇到的问题。</p>",
+                "tagColor": "#2196F3",
+                "isArchived": false,
+                "originalTagColor": "#2196F3"
+            },
+            {
+                "content": "学习计划：深度学习入门",
+                "details": "<h3><b>学习目标</b></h3><p>掌握深度学习基本概念，包括神经网络、卷积神经网络（CNN）和循环神经网络（RNN）的工作原理及其应用。</p><h3><b>学习资源</b></h3><ul><li><b>课程：</b><a href=\"https://www.coursera.org/\" target=\"_blank\">Coursera 深度学习专项课程</a></li><li><b>书籍：</b>《深度学习》 by Ian Goodfellow et al.</li><li><b>在线平台：</b>Kaggle竞赛实战。</li></ul><h3><b>时间安排（每周）</b></h3><p><b>周一：</b>理论学习（神经网络基础）</p><p><b>周三：</b>实践编码（TensorFlow/PyTorch）</p><p><b>周五：</b>项目实践（图像识别或自然语言处理）</p><p><b>周末：</b>复习与总结，参与社区讨论。</p><blockquote><i>\"深度学习是人工智能的未来。\"</i></blockquote><p>计划每天至少投入<b>2小时</b>进行学习和实践。</p>",
+                "tagColor": "#4CAF50",
+                "isArchived": false,
+                "originalTagColor": "#4CAF50"
+            },
+            {
+                "content": "采购清单：居家办公设备",
+                "details": "<h3><b>急需采购物品</b></h3><ul><li><b>人体工学椅：</b>舒适性与支撑性是首要考量。</li><li><b>高分辨率显示器：</b>至少27寸，4K分辨率，有助于视觉设计工作。</li><li><b>机械键盘：</b>青轴或茶轴，提升打字手感。</li><li><b>无线鼠标：</b>罗技MX Master系列，提高效率。</li></ul><h3><b>可选配件</b></h3><ul><li><b>桌面支架：</b>用于显示器和笔记本，优化桌面空间。</li><li><b>环形补光灯：</b>视频会议使用，改善形象。</li><li><b>智能插座：</b>方便设备管理。</li></ul><p><b>预算：</b>总预算不超过 <b>8000 元</b>。请刘（馨宇）协助挑选，注重性价比和质量。</p>",
+                "tagColor": "#FFC107",
+                "isArchived": false,
+                "originalTagColor": "#FFC107"
+            },
+            {
+                "content": "未来职业规划",
+                "details": "<h3><b>短期目标（1-2年）</b></h3><ul><li><b>技能提升：</b>深入学习前端开发或UI/UX设计，掌握<b>最新的设计工具和技术</b>。</li><li><b>项目经验：</b>参与更多大型项目，积累独立负责经验。</li><li><b>行业了解：</b>积极参加行业交流会，拓展人脉。</li></ul><h3><b>长期目标（3-5年）</b></h3><p>转型至对口技术岗位，寻求更具挑战性和兴趣的工作，例如<b>前端开发工程师</b>或高级UI/UX设计师。</p><h3><b>行动计划</b></h3><p><b>每周：</b>至少学习<b>10小时</b>新技能。</p><p><b>每月：</b>完成至少1个小项目实践。</p><p><b>每季度：</b>评估技能掌握情况并调整学习方向。</p>",
+                "tagColor": "#00BCD4",
+                "isArchived": false,
+                "originalTagColor": "#00BCD4"
+            },
+            {
+                "content": "周末放松：新电影观看清单",
+                "details": "<h3><b>本周推荐</b></h3><ul><li><b>《沙丘2》：</b>科幻史诗巨制，视觉震撼。</li><li><b>《哥斯拉大战金刚2》：</b>怪兽电影，解压首选。</li></ul><h3><b>待看经典</b></h3><ul><li><b>《肖申克的救赎》：</b>永恒的经典。</li><li><b>《盗梦空间》：</b>烧脑神作。</li></ul><p><b>观影提示：</b>准备好爆米花和零食，享受电影时光！</p>",
+                "tagColor": "#607D8B",
+                "isArchived": true,
+                "originalTagColor": "#607D8B"
+            }
+        ];
+        defaultCards.forEach(cardData => {
+            createNewCard(cardData.content, cardData.details, cardData.tagColor, cardData.isArchived, cardData.originalTagColor);
+        });
+        saveWorkspaceData(); // 在创建默认卡片后保存，确保写入服务器
+        console.log('--- createDefaultCards: 已创建并保存默认卡片（来自预设JSON） ---');
+    }
+</script>
+</body>
+</html>

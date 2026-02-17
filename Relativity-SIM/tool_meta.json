@@ -1,0 +1,7 @@
+{
+    "name_zh": "相对论模拟器",
+    "icon": "icon.svg",
+    "icon_padding": 6,
+    "icon_color": "#ffffff",
+    "description": "物理相对论效果模拟"
+}

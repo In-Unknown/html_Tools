@@ -1,0 +1,7 @@
+{
+    "name_zh": "待办事项拖拽看板",
+    "icon": "icon.svg",
+    "icon_padding": 8,
+    "icon_color": "#ffff00",
+    "description": "可视化拖拽管理待办事项"
+}

@@ -1,0 +1,362 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>字符串去重与分析工具</title>
+    <style>
+        body {
+            font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+            display: flex;
+            justify-content: center;
+            align-items: center;
+            min-height: 100vh;
+            background-color: #f4f7f6;
+            margin: 0;
+            padding: 20px;
+            box-sizing: border-box;
+        }
+        .container {
+            background-color: #ffffff;
+            padding: 30px;
+            border-radius: 10px;
+            box-shadow: 0 4px 15px rgba(0, 0, 0, 0.1);
+            width: 100%;
+            max-width: 650px;
+            text-align: center;
+        }
+        h1 {
+            color: #333;
+            margin-bottom: 25px;
+            font-size: 1.8em;
+        }
+        textarea {
+            width: calc(100% - 20px);
+            padding: 12px;
+            margin-bottom: 15px;
+            border: 1px solid #ddd;
+            border-radius: 8px;
+            font-size: 1em;
+            resize: vertical;
+            min-height: 120px;
+            box-sizing: border-box;
+        }
+        .input-info, .output-info {
+            display: flex;
+            justify-content: space-between;
+            margin-bottom: 15px;
+            font-size: 0.9em;
+            color: #666;
+            padding: 0 10px;
+        }
+        .input-info span, .output-info span {
+            flex-grow: 1;
+            text-align: left;
+        }
+        .output-info span:last-child {
+            text-align: right;
+        }
+        .buttons {
+            display: flex;
+            justify-content: space-between;
+            gap: 10px;
+            margin-bottom: 20px;
+        }
+        button {
+            background-color: #007bff;
+            color: white;
+            padding: 12px 25px;
+            border: none;
+            border-radius: 8px;
+            font-size: 1.1em;
+            cursor: pointer;
+            transition: background-color 0.3s ease;
+        }
+        button:hover {
+            background-color: #0056b3;
+        }
+        button.primary-action {
+            flex-grow: 1;
+        }
+        button.secondary-action {
+            background-color: #6c757d;
+            width: 160px;
+            flex-shrink: 0;
+        }
+        button.secondary-action:hover {
+            background-color: #5a6268;
+        }
+        .result-section {
+            position: relative;
+            margin-top: 15px;
+        }
+        .result-label {
+            font-size: 1.1em;
+            color: #555;
+            display: block;
+            text-align: left;
+            margin-left: 10px;
+            margin-bottom: 5px;
+        }
+        .result-output-wrapper {
+            position: relative;
+            background-color: #e9ecef;
+            padding: 15px;
+            border-radius: 8px;
+            border: 1px solid #ccc;
+            min-height: 50px;
+            padding-right: 70px;
+        }
+        .result-output {
+            text-align: left;
+            word-wrap: break-word;
+            white-space: pre-wrap;
+            font-family: monospace;
+            font-size: 0.95em;
+            color: #333;
+        }
+        .copy-button {
+            background-color: #28a745;
+            color: white;
+            padding: 8px 15px;
+            border: none;
+            border-radius: 5px;
+            cursor: pointer;
+            font-size: 0.9em;
+            transition: background-color 0.3s ease;
+            position: absolute;
+            top: 10px;
+            right: 10px;
+            z-index: 2;
+            display: none;
+        }
+        .copy-button:hover {
+            background-color: #218838;
+        }
+        .copy-button:active {
+            transform: translateY(1px);
+        }
+        .copy-feedback {
+            position: absolute;
+            top: 50%;
+            left: 50%;
+            transform: translate(-50%, -50%);
+            background-color: rgba(0, 0, 0, 0.7);
+            color: white;
+            padding: 8px 15px;
+            border-radius: 5px;
+            font-size: 0.9em;
+            opacity: 0;
+            transition: opacity 0.3s ease-out;
+            pointer-events: none;
+        }
+
+        /* Modal Styles */
+        .modal {
+            display: none;
+            position: fixed;
+            z-index: 10;
+            left: 0;
+            top: 0;
+            width: 100%;
+            height: 100%;
+            overflow: auto;
+            background-color: rgba(0,0,0,0.4);
+            justify-content: center;
+            align-items: center;
+        }
+        .modal-content {
+            background-color: #fefefe;
+            margin: auto;
+            padding: 25px;
+            border: 1px solid #888;
+            border-radius: 10px;
+            width: 80%;
+            max-width: 500px;
+            box-shadow: 0 4px 8px rgba(0,0,0,0.2);
+            position: relative;
+            animation-name: animatetop;
+            animation-duration: 0.4s
+        }
+        @keyframes animatetop {
+            from {top: -300px; opacity: 0}
+            to {top: 0; opacity: 1}
+        }
+        .close-button {
+            color: #aaa;
+            float: right;
+            font-size: 28px;
+            font-weight: bold;
+            margin-top: -10px;
+            margin-right: -5px;
+        }
+        .close-button:hover,
+        .close-button:focus {
+            color: black;
+            text-decoration: none;
+            cursor: pointer;
+        }
+        .modal-content h2 {
+            margin-top: 0;
+            color: #333;
+            margin-bottom: 20px;
+        }
+        .modal-content ul {
+            list-style: none;
+            padding: 0;
+            max-height: 300px;
+            overflow-y: auto;
+            border: 1px solid #eee;
+            border-radius: 5px;
+            padding: 10px;
+        }
+        .modal-content ul li {
+            padding: 8px 0;
+            border-bottom: 1px dashed #eee;
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            font-family: monospace;
+            font-size: 0.9em;
+        }
+        .modal-content ul li:last-child {
+            border-bottom: none;
+        }
+        .modal-content ul li strong {
+            color: #007bff;
+        }
+        .no-duplicates-message { /* 改变类名，更具描述性 */
+            color: #888;
+            font-style: italic;
+            text-align: center;
+            padding: 20px;
+        }
+    </style>
+    <script src="/debug_comm.js"></script>
+</head>
+<body>
+    <div class="container">
+        <h1>逗号分隔字符串去重与分析</h1>
+        <textarea id="inputText" placeholder="请输入逗号分隔的字符串，例如: 苹果,香蕉,苹果,橙子,香蕉"></textarea>
+        <div class="input-info">
+            <span>输入总词数: <strong id="inputWordCount">0</strong></span>
+            <span>输入字符数: <strong id="inputCharCount">0</strong></span>
+        </div>
+        <div class="buttons">
+            <button class="primary-action" onclick="processString()">处理并去重</button>
+            <button class="secondary-action" onclick="showDuplicateWords()">查看重复词汇</button>
+        </div>
+        <div class="result-section">
+            <label for="resultOutput" class="result-label">去重后结果:</label>
+            <div class="result-output-wrapper">
+                <div id="resultOutput" class="result-output"></div>
+                <button class="copy-button" onclick="copyResult()">复制结果</button>
+                <span id="copyFeedback" class="copy-feedback">已复制!</span>
+            </div>
+            <div class="output-info">
+                <span>去重后词数: <strong id="outputWordCount">0</strong></span>
+                <span>去重后字符数: <strong id="outputCharCount">0</strong></span>
+            </div>
+        </div>
+    </div>
+
+    <div id="duplicateModal" class="modal">
+        <div class="modal-content">
+            <span class="close-button" onclick="closeModal()">&times;</span>
+            <h2>重复词汇列表</h2>
+            <ul id="duplicateList">
+                </ul>
+        </div>
+    </div>
+
+    <script>
+        let duplicateMap = new Map();
+
+        function processString() {
+            const inputText = document.getElementById('inputText').value;
+            const inputCharCount = inputText.length;
+            const parts = inputText.split(',').map(part => part.trim()).filter(part => part !== '');
+
+            document.getElementById('inputWordCount').textContent = parts.length;
+            document.getElementById('inputCharCount').textContent = inputCharCount;
+
+            const uniqueParts = [];
+            const seen = new Set();
+            duplicateMap.clear(); // 每次处理前清空重复词汇映射
+
+            const tempCountMap = new Map();
+
+            for (const part of parts) {
+                tempCountMap.set(part, (tempCountMap.get(part) || 0) + 1);
+
+                if (!seen.has(part)) {
+                    uniqueParts.push(part);
+                    seen.add(part);
+                }
+            }
+
+            for (const [word, count] of tempCountMap.entries()) {
+                if (count > 1) {
+                    duplicateMap.set(word, count);
+                }
+            }
+
+            const resultString = uniqueParts.join(',');
+            const outputCharCount = resultString.length;
+
+            document.getElementById('resultOutput').textContent = resultString;
+            document.getElementById('outputWordCount').textContent = uniqueParts.length;
+            document.getElementById('outputCharCount').textContent = outputCharCount;
+
+            document.querySelector('.copy-button').style.display = 'block';
+        }
+
+        function copyResult() {
+            const resultText = document.getElementById('resultOutput').textContent;
+            const copyFeedback = document.getElementById('copyFeedback');
+
+            navigator.clipboard.writeText(resultText).then(() => {
+                copyFeedback.style.opacity = 1;
+                setTimeout(() => {
+                    copyFeedback.style.opacity = 0;
+                }, 1500);
+            }).catch(err => {
+                console.error('复制失败:', err);
+                alert('复制失败，请手动复制。');
+            });
+        }
+
+        function showDuplicateWords() {
+            const duplicateList = document.getElementById('duplicateList');
+            duplicateList.innerHTML = ''; // 清空之前的内容
+
+            if (duplicateMap.size === 0) {
+                // 如果没有重复项，显示提示信息
+                duplicateList.innerHTML = '<li class="no-duplicates-message">没有发现重复的词汇。</li>';
+            } else {
+                // 有重复项则正常显示列表
+                for (const [word, count] of duplicateMap.entries()) {
+                    const listItem = document.createElement('li');
+                    listItem.innerHTML = `<span>"${word}"</span> <span>重复 <strong>${count}</strong> 次</span>`;
+                    duplicateList.appendChild(listItem);
+                }
+            }
+
+            document.getElementById('duplicateModal').style.display = 'flex';
+        }
+
+        function closeModal() {
+            document.getElementById('duplicateModal').style.display = 'none';
+        }
+
+        document.getElementById('inputText').addEventListener('input', function() {
+            const inputText = this.value;
+            document.getElementById('inputCharCount').textContent = inputText.length;
+            const parts = inputText.split(',').map(part => part.trim()).filter(part => part !== '');
+            document.getElementById('inputWordCount').textContent = parts.length;
+        });
+
+        document.addEventListener('DOMContentLoaded', processString);
+    </script>
+</body>
+</html>

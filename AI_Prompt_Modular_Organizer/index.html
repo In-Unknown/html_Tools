@@ -1,0 +1,3271 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>模块化 AI 提示词整理器</title>
+    <!-- 引入Tailwind CSS框架，用于快速构建响应式界面 -->
+    <script src="https://cdn.tailwindcss.com"></script>
+<style>
+        /* 全局样式重置与基础设置 */
+        body {
+            font-family: 'Inter', sans-serif; /* 全局字体 */
+            background-color: #f8fafc; /* 页面背景色 */
+            color: #1f2937; /* 全局文字颜色 */
+        }
+        /* 容器样式：限制最大宽度、居中、内边距 */
+        .container {
+            max-width: 100%;
+            margin: 0 auto;
+            padding: 20px;
+        }
+        /* 标签容器样式：虚线边框、弹性布局、背景色等 */
+        .tag-container {
+            min-height: 80px; /* 最小高度，避免为空时过窄 */
+            border: 2px dashed #9ca3af; /* 虚线边框 */
+            border-radius: 0.5rem; /* 圆角 */
+            padding: 1rem; /* 内边距 */
+            display: flex; /* 弹性布局，标签横向排列 */
+            flex-wrap: wrap; /* 自动换行 */
+            gap: 0.5rem; /* 标签间距 */
+            background-color: #ffffff; /* 白色背景 */
+            transition: border-color 0.3s; /* 边框颜色过渡效果 */
+        }
+        /* 标签容器获取焦点时的边框颜色变化（提升交互反馈） */
+        .tag-container:focus-within {
+            border-color: #2563eb; /* 聚焦时边框变蓝色 */
+        }
+        /* 标签及各类衍生标签的基础样式：内边距、圆角、弹性对齐等 */
+        .tag, .tag-group-summary, .tag-parameter, .tag-weighted {
+            padding: 0.3rem 0.75rem; /* 内边距 */
+            border-radius: 0.375rem; /* 圆角 */
+            display: flex; /* 弹性布局，图标与文字对齐 */
+            align-items: center; /* 垂直居中 */
+            font-size: 0.875rem; /* 字体大小 */
+            cursor: pointer; /* 鼠标悬浮变指针，提示可交互 */
+            transition: all 0.2s; /* 所有属性过渡效果 */
+            box-shadow: 0 1px 3px rgba(0,0,0,0.05); /* 轻微阴影，提升层次感 */
+            white-space: normal; /* 允许文字换行 */
+            word-break: break-word; /* 强制换行，避免长文本溢出 */
+            overflow-wrap: break-word; /* 溢出时换行 */
+            max-width: 100%; /* 最大宽度限制 */
+            height: auto; /* 高度自适应 */
+            user-select: none; /* 禁止文本选中，提升交互体验 */
+        }
+        /* 标签内图标样式：不收缩，保持固定大小 */
+        .tag svg, .tag-group-summary svg, .tag-parameter svg, .tag-weighted svg, .delete-tag {
+            flex-shrink: 0;
+        }
+        /* 普通标签样式：浅蓝色背景、边框，深蓝色文字 */
+        .tag {
+            background-color: #dbeafe;
+            border: 1px solid #93c5fd;
+            color: #1e40af;
+            font-weight: 500; /* 字体加粗 */
+        }
+        /* 标签组摘要样式：浅黄色背景、边框，深棕色文字 */
+        .tag-group-summary {
+            background-color: #fef3c7;
+            border: 1px solid #fcd34d;
+            color: #92400e;
+            font-weight: 600; /* 字体粗度提升 */
+        }
+        /* 带外部权重的标签组样式：更深的黄色背景、边框 */
+        .tag-group-with-outer-weight {
+            background-color: #feedaf;
+            border: 1px solid #fdba74;
+        }
+        /* 外部权重文本样式：红色背景、加粗文字 */
+        .outer-weight {
+            background-color: rgba(220, 38, 38, 0.1);
+            padding: 0 0.25rem; /* 左右内边距 */
+            border-radius: 0.25rem; /* 圆角 */
+            margin-right: 0.25rem; /* 右边距 */
+            font-weight: bold; /* 加粗 */
+            color: #dc2626; /* 红色文字 */
+        }
+        /* 参数标签样式：浅紫色背景、边框，深紫色文字 */
+        .tag-parameter {
+            background-color: #ede9fe;
+            border: 1px solid #c4b5fd;
+            color: #6d28d9;
+            font-weight: 600;
+        }
+        /* 加权标签样式：浅红色背景、边框，深红色文字 */
+        .tag-weighted {
+            background-color: #fee2e2;
+            border: 1px solid #fca5a5;
+            color: #b91c1c;
+            font-weight: 600;
+        }
+        /* 标签组选项容器样式：水平排列并自动换行 */
+        #group-tag-container {
+            min-height: 50px;
+            max-height: 540px; /* 修改为540px高度 */
+            overflow-y: auto; /* 垂直滚动 */
+            border: 2px solid #e5e7eb; /* 实线边框 */
+            border-radius: 0.5rem;
+            padding: 0.75rem;
+            background-color: #ffffff;
+            display: flex;
+            flex-wrap: wrap; /* 允许换行 */
+            gap: 0.5rem; /* 选项间距 */
+            align-content: flex-start; /* 从顶部开始排列 */
+        }
+        /* 标签组选项样式：允许内容换行，高度自适应 */
+        .tag-group-option {
+            background-color: #fef08a;
+            border: 1px solid #facc15;
+            color: #a16207;
+            font-weight: 500;
+            cursor: ns-resize;
+            display: flex;
+            align-items: flex-start; /* 顶部对齐 */
+            padding: 0.5rem 0.75rem;
+            border-radius: 0.375rem;
+            min-height: 2.5rem;
+            max-width: calc(50% - 0.25rem); /* 每行最多两个选项，考虑gap */
+            box-sizing: border-box;
+            white-space: normal; /* 允许换行 */
+            word-break: break-word; /* 允许单词内断行 */
+            overflow-wrap: break-word; /* 允许长单词换行 */
+            flex: 1 1 auto; /* 允许选项根据需要调整大小 */
+        }
+        /* 标签组选项拖拽手柄样式 */
+        .group-tag-drag-handle {
+            margin-right: 0.5rem;
+            cursor: move;
+            color: #94a3b8;
+            opacity: 0.7;
+            flex-shrink: 0;
+            align-self: flex-start; /* 顶部对齐 */
+            margin-top: 0.125rem; /* 微调垂直位置 */
+        }
+        .tag-group-option:hover .group-tag-drag-handle {
+            opacity: 1;
+        }
+        
+        /* 标签组选项拖拽中样式 */
+        .group-tag-dragging {
+            opacity: 0.7;
+            transform: scale(1.05) rotate(1deg);
+            box-shadow: 0 10px 25px rgba(0,0,0,0.1);
+            z-index: 100;
+            position: fixed;
+            pointer-events: none;
+        }
+
+        /* 标签组选项拖拽占位符样式 */
+        .group-tag-drag-placeholder {
+            background-color: #fef3c7;
+            border: 2px dashed #f59e0b;
+            border-radius: 0.375rem;
+            opacity: 0.5;
+            min-height: 2.5rem;
+            width: calc(50% - 0.25rem); /* 与选项相同的宽度 */
+            box-sizing: border-box;
+            flex: 1 1 auto; /* 与选项相同的flex属性 */
+        }
+        /* 模态框打开时禁用背景滚动 */
+        body.modal-open {
+            overflow: hidden;
+        }
+
+        /* 自定义滚动条样式 */
+        #group-tag-container::-webkit-scrollbar {
+            width: 8px;
+        }
+
+        #group-tag-container::-webkit-scrollbar-track {
+            background: #f1f1f1;
+            border-radius: 4px;
+        }
+
+        #group-tag-container::-webkit-scrollbar-thumb {
+            background: #c1c1c1;
+            border-radius: 4px;
+        }
+
+        #group-tag-container::-webkit-scrollbar-thumb:hover {
+            background: #a8a8a8;
+        }
+        /* 标签类元素悬浮效果：透明度降低、轻微上浮 */
+        .tag:hover, .tag-group-summary:hover, .tag-parameter:hover, .tag-weighted:hover, .tag-group-option:hover {
+            opacity: 0.9;
+            transform: translateY(-1px);
+        }
+        /* 删除标签按钮样式：红色、加粗、右对齐 */
+        .delete-tag {
+            margin-left: 0.5rem;
+            color: #ef4444;
+            font-weight: bold;
+            font-size: 1rem;
+            cursor: pointer;
+            line-height: 1;
+            flex-shrink: 0;
+        }
+        /* 模态框基础样式：默认隐藏、固定定位、全屏覆盖 */
+        .modal {
+            display: none;
+            position: fixed;
+            z-index: 50;
+            left: 0;
+            top: 0;
+            width: 100%;
+            height: 100%;
+            overflow: auto;
+            background-color: rgba(0,0,0,0.6);
+            padding-top: 5vh;
+        }
+        /* 模态框内容容器样式：白色背景、圆角、阴影、居中 */
+        .modal-content {
+            background-color: #fefefe;
+            margin: 0 auto;
+            padding: 20px;
+            border-radius: 8px;
+            box-shadow: 0 10px 25px rgba(0,0,0,0.2);
+            width: 90%;
+            max-width: 600px;
+            animation: fadeIn 0.3s ease-out;
+            max-height: 85vh; /* 限制模态框最大高度 */
+            overflow: hidden; /* 隐藏模态框内容溢出 */
+            display: flex;
+            flex-direction: column;
+        }
+        /* 模态框淡入动画：从透明、上移到正常状态 */
+        @keyframes fadeIn {
+            from { opacity: 0; transform: translateY(-20px); }
+            to { opacity: 1; transform: translateY(0); }
+        }
+        /* 模态框关闭按钮样式：灰色、大号字体、加粗 */
+        .close {
+            color: #9ca3af;
+            font-size: 2rem;
+            font-weight: bold;
+            cursor: pointer;
+            line-height: 1;
+        }
+        /* 关闭按钮悬浮效果：文字变深灰色 */
+        .close:hover {
+            color: #1f2937;
+        }
+        /* 响应式样式：屏幕宽度≤640px时（移动端） */
+        @media (max-width: 640px) {
+            .container {
+                padding: 10px;
+            }
+            .modal-content {
+                width: 95%;
+                margin-top: 2vh;
+            }
+            .btn {
+                width: 100%;
+                margin-top: 10px;
+            }
+            /* 在小屏幕上，每个选项占满一行 */
+            .tag-group-option,
+            .group-tag-drag-placeholder {
+                max-width: 100%;
+                width: 100%;
+            }
+        }
+        /* 标签组选项编辑状态样式：紫色边框、轻微放大、紫色阴影 */
+        .tag-group-option.editing {
+            border: 2px solid #a855f7;
+            transform: scale(1.02);
+            box-shadow: 0 0 10px rgba(168, 85, 247, 0.5);
+        }
+
+        /* 拖拽相关样式 */
+        /* 拖拽中元素样式：透明度降低、轻微放大、旋转、阴影加深 */
+        .dragging {
+            opacity: 0.7;
+            transform: scale(1.05) rotate(1deg);
+            box-shadow: 0 10px 25px rgba(0,0,0,0.1);
+            z-index: 100;
+            position: fixed;
+            pointer-events: none;
+        }
+        /* 拖拽占位符样式：浅蓝色背景、虚线边框、半透明 */
+        .drag-placeholder {
+            background-color: #e0e7ff;
+            border: 2px dashed #60a5fa;
+            border-radius: 0.375rem;
+            opacity: 0.5;
+            transition: all 0.2s ease;
+        }
+        /* 拖拽手柄样式：灰色、半透明、鼠标指针 */
+        .drag-handle {
+            margin-right: 0.5rem;
+            cursor: move;
+            color: #94a3b8;
+            opacity: 0.7;
+        }
+        /* 标签悬浮时拖拽手柄样式：不透明 */
+        .tag:hover .drag-handle, .tag-group-summary:hover .drag-handle {
+            opacity: 1;
+        }
+
+        /* 错误提示样式 */
+        /* 错误提示容器样式：红色文字、浅红色背景、左侧红色边框 */
+        .error-message {
+            color: #dc2626;
+            background-color: #fee2e2;
+            border-left: 4px solid #dc2626;
+            padding: 0.75rem;
+            margin: 0.5rem 0;
+            border-radius: 0.375rem;
+            font-size: 0.875rem;
+            display: none;
+        }
+        /* 错误高亮文本样式：浅红色背景、加粗 */
+        .error-highlight {
+            background-color: rgba(220, 38, 38, 0.2);
+            padding: 0 0.25rem;
+            border-radius: 0.25rem;
+            font-weight: bold;
+        }
+        /* 错误行样式：等宽字体、预格式化换行、左内边距 */
+        .error-line {
+            font-family: monospace;
+            white-space: pre-wrap;
+            position: relative;
+            padding-left: 2.5rem;
+            margin: 0.5rem 0;
+            line-height: 1.5;
+        }
+        /* 错误行号样式：绝对定位、右对齐、灰色文字 */
+        .error-line-number {
+            position: absolute;
+            left: 0;
+            width: 2rem;
+            text-align: right;
+            color: #9ca3ab;
+            pointer-events: none;
+        }
+        /* 错误光标样式：红色、加粗、闪烁动画 */
+        .error-caret {
+            color: #dc2626;
+            font-weight: bold;
+            animation: blink 1s step-end infinite;
+        }
+        /* 光标闪烁动画：50%透明度为0 */
+        @keyframes blink {
+            from, to { opacity: 1 }
+            50% { opacity: 0 }
+        }
+        /* 箭头指示器样式 */
+        .arrow-indicator {
+            margin: 0 4px;
+            font-weight: bold;
+            width: 1em;
+            display: inline-block;
+            text-align: center;
+            font-size: 0.875rem;
+        }
+        
+        /* 键盘悬停指示器样式 */
+        .tag.ring-2, .tag-group-summary.ring-2, .tag-parameter.ring-2, .tag-weighted.ring-2 {
+            box-shadow: 0 0 0 2px rgba(59, 130, 246, 0.5);
+        }
+        
+        /* 复制反馈样式 */
+        .copy-feedback {
+            position: fixed;
+            top: 20px;
+            right: 20px;
+            background-color: #10b981;
+            color: white;
+            padding: 10px 20px;
+            border-radius: 0.5rem;
+            box-shadow: 0 4px 6px rgba(0, 0, 0, 0.1);
+            z-index: 1000;
+            animation: slideIn 0.3s ease-out, fadeOut 0.3s ease-in 1.7s forwards;
+        }
+        
+        @keyframes slideIn {
+            from { transform: translateX(100%); opacity: 0; }
+            to { transform: translateX(0); opacity: 1; }
+        }
+        
+        @keyframes fadeOut {
+            from { opacity: 1; }
+            to { opacity: 0; }
+        }
+
+        /* 工作区管理器样式 */
+        .workspace-manager {
+            display: flex;
+            align-items: center;
+            gap: 10px;
+            margin-bottom: 20px;
+            padding: 15px;
+            background: white;
+            border-radius: 8px;
+            box-shadow: 0 2px 4px rgba(0,0,0,0.1);
+            flex-wrap: wrap;
+        }
+        
+        .workspace-select {
+            min-width: 200px;
+            padding: 8px 12px;
+            border: 1px solid #d1d5db;
+            border-radius: 6px;
+            background-color: white;
+        }
+        
+        .workspace-btn {
+            padding: 8px 12px;
+            border: none;
+            border-radius: 6px;
+            cursor: pointer;
+            font-weight: 500;
+            transition: all 0.2s;
+        }
+        
+        .workspace-btn.primary {
+            background-color: #3b82f6;
+            color: white;
+        }
+        
+        .workspace-btn.primary:hover {
+            background-color: #2563eb;
+        }
+        
+        .workspace-btn.secondary {
+            background-color: #6b7280;
+            color: white;
+        }
+        
+        .workspace-btn.secondary:hover {
+            background-color: #4b5563;
+        }
+        
+        .workspace-btn.danger {
+            background-color: #ef4444;
+            color: white;
+        }
+        
+        .workspace-btn.danger:hover {
+            background-color: #dc2626;
+        }
+        
+        .workspace-info {
+            margin-left: auto;
+            font-size: 0.875rem;
+            color: #6b7280;
+        }
+        
+        /* 工作区模态框样式 */
+        .workspace-modal-content {
+            max-width: 500px;
+        }
+        
+        .workspace-form-group {
+            margin-bottom: 15px;
+        }
+        
+        .workspace-form-group label {
+            display: block;
+            margin-bottom: 5px;
+            font-weight: 500;
+        }
+        
+        .workspace-form-group input {
+            width: 100%;
+            padding: 8px 12px;
+            border: 1px solid #d1d5db;
+            border-radius: 6px;
+        }
+    </style>
+</head>
+<body>
+<!-- 页面主容器 -->
+<div class="container">
+    <!-- 工作区管理器 -->
+    <div class="workspace-manager">
+        <span class="font-medium">工作区:</span>
+        <select id="workspace-selector" class="workspace-select">
+            <!-- 工作区选项将动态生成 -->
+        </select>
+        <button class="workspace-btn primary" onclick="showCreateWorkspaceModal()">➕ 新建</button>
+        <button class="workspace-btn secondary" onclick="showRenameWorkspaceModal()">✏️ 重命名</button>
+        <button class="workspace-btn danger" onclick="showDeleteWorkspaceModal()">🗑️ 删除</button>
+        <div class="workspace-info">
+            <span id="workspace-modified-info"></span>
+        </div>
+    </div>
+    
+    <!-- 页面标题 -->
+    <h1 class="text-3xl font-extrabold text-indigo-600 mb-6 border-b pb-3">🎨 模块化 AI 提示词整理器</h1>
+    
+    <!-- 主提示词编辑区 -->
+    <div class="bg-white p-6 rounded-xl shadow-lg mb-8">
+        <h2 class="text-xl font-semibold mb-3 text-gray-700">主提示词编辑区</h2>
+        <p class="text-sm text-gray-500 mb-4">输入提示词（按 <kbd>Enter</kbd> 或输入 <kbd>,</kbd> 添加）。**双击标签可编辑**，双击标签组可配置随机选项。拖动左侧 ☰ 图标可调整顺序。</p>
+        <p class="text-xs text-red-500 mb-4 font-bold">⚠️ 提示：在权重/参数标签（如lora）或带权重的标签组上滚动鼠标滚轮可以调整数值！(按住Shift键更精确)</p>
+        <p class="text-xs text-blue-500 mb-4 font-bold">🎮 键盘控制：悬停模块后使用方向键调整逗号连接，按 <kbd>Ctrl+C</kbd> 复制模块文本</p>
+        <!-- 标签容器：动态生成标签、标签组、参数标签 -->
+        <div id="main-tag-container" class="tag-container mb-4">
+            <!-- 标签、标签组和参数标签会在这里动态生成 -->
+        </div>
+        <!-- 新增标签输入框 -->
+        <input type="text" id="main-tag-input" class="w-full p-3 border border-gray-300 rounded-lg focus:ring-2 focus:ring-indigo-500 focus:border-indigo-500 transition" placeholder="输入新的提示词（例如: (1girl:0.75)、<lora:name:0.2>、({a|b}:0.5)、0.5:{a|b} 或 {dog|cat|0.35::boy}）">
+        <!-- 标签编辑控制按钮：默认隐藏，编辑时显示 -->
+        <div id="tag-edit-controls" class="mt-4 hidden flex gap-3">
+            <button class="bg-purple-600 hover:bg-purple-700 text-white font-bold py-2 px-4 rounded-lg transition shadow-lg flex-grow" onclick="updateTag()">
+                ✅ 更新标签
+            </button>
+            <button class="bg-gray-400 hover:bg-gray-500 text-white font-bold py-2 px-4 rounded-lg transition shadow-md" onclick="cancelEdit()">
+                ❌ 取消编辑
+            </button>
+        </div>
+        <!-- 标签添加控制按钮：默认显示 -->
+        <div id="tag-add-controls" class="mt-4">
+            <button class="bg-green-500 hover:bg-green-600 text-white font-bold py-2 px-4 rounded-lg transition shadow-md w-full sm:w-auto" onclick="addTagGroup()">
+                ✨ 添加标签组 (随机模块)
+            </button>
+        </div>
+    </div>
+    
+    <!-- 功能按钮区：生成提示词、解析提示词 -->
+    <div class="flex flex-col sm:flex-row gap-4 mb-8">
+        <button class="btn bg-indigo-500 hover:bg-indigo-600 text-white font-bold py-3 px-6 rounded-lg transition shadow-md w-full" onclick="generatePromptText()">
+            ⬇️ 模块生成提示词文本 (复制用)
+        </button>
+        <button class="btn bg-gray-500 hover:bg-gray-600 text-white font-bold py-3 px-6 rounded-lg transition shadow-md w-full" onclick="parsePromptText()">
+            ⬆️ 提示词文本解析为模块 (导入用)
+        </button>
+    </div>
+    
+    <!-- 最终提示词文本展示区 -->
+    <div class="bg-white p-6 rounded-xl shadow-lg mb-8">
+        <h2 class="text-xl font-semibold mb-3 text-gray-700">最终提示词文本</h2>
+        <!-- 提示词输出文本框：只读，显示生成的最终提示词 -->
+        <textarea id="prompt-output" readonly class="w-full h-36 p-4 border border-gray-300 rounded-lg bg-gray-50 resize-y" placeholder="生成的提示词文本会显示在这里..."></textarea>
+        <!-- 复制按钮：复制输出文本框内容 -->
+        <button class="bg-teal-500 hover:bg-teal-600 text-white font-bold py-2 px-4 rounded-lg mt-3 transition shadow-md" onclick="copyToClipboard()">📋 复制文本</button>
+    </div>
+    
+    <!-- 待解析提示词文本输入区 -->
+    <div class="bg-white p-6 rounded-xl shadow-lg">
+        <h2 class="text-xl font-semibold mb-3 text-gray-700">待解析的提示词文本</h2>
+        <!-- 错误提示区域：解析括号错误时显示 -->
+        <div id="bracket-error-container" class="error-message">
+            <div id="bracket-error-message"></div>
+            <div id="bracket-error-example"></div>
+        </div>
+        <!-- 提示词输入文本框：粘贴需要解析的提示词 -->
+        <textarea id="prompt-input" class="w-full h-36 p-4 border border-gray-300 rounded-lg resize-y" placeholder="粘贴你需要解析的复杂提示词文本到这里..."></textarea>
+    </div>
+</div>
+
+<!-- 标签组编辑模态框：编辑标签组名称、选项、权重 -->
+<div id="tag-group-modal" class="modal">
+    <div class="modal-content">
+        <!-- 模态框标题栏：标题 + 关闭按钮 -->
+        <div class="flex justify-between items-center border-b pb-3 mb-4">
+            <h2 id="modal-title" class="text-2xl font-bold text-gray-800">编辑标签组（随机模块）</h2>
+            <span class="close" onclick="closeModal()">&times;</span>
+        </div>
+        <!-- 标签组名称输入框 -->
+        <label for="group-name-input" class="block text-sm font-medium text-gray-700 mb-1">标签组名称（收起时显示）：</label>
+        <input type="text" id="group-name-input" class="w-full p-2 border border-gray-300 rounded-lg mb-4 focus:ring-indigo-500 focus:border-indigo-500" placeholder="例如：背景风格">
+        <!-- 标签组选项列表说明 -->
+        <label class="block text-sm font-medium text-gray-700 mb-2">随机选项列表（支持权重，例如 2.5::选项）：</label>
+        <p class="text-xs text-red-500 mb-4 font-bold">💡 提示：在选项标签上滚动鼠标滚轮可以调整权重！**双击可编辑选项内容和权重。**</p>
+        <!-- 标签组选项容器：动态生成选项标签 -->
+        <div id="group-tag-container" class="tag-container mb-4 min-h-[50px] border-solid border-2">
+            <!-- 组内标签会在这里动态生成 -->
+        </div>
+        <!-- 新增/编辑选项输入区：权重输入 + 内容输入 + 确认按钮 -->
+        <div class="flex gap-2 mb-4">
+            <input type="number" id="group-tag-weight-input" class="w-20 p-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-amber-500 focus:border-amber-500" placeholder="权重" value="1.0" min="0" step="0.1">
+            <input type="text" id="group-tag-content-input" class="flex-grow p-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-indigo-500 focus:border-indigo-500" placeholder="输入随机选项内容（按 Enter 或点击按钮确认/新增）">
+            <button id="group-tag-save-btn" class="bg-amber-500 hover:bg-amber-600 text-white font-bold py-2 px-3 rounded-lg transition shadow-md" onclick="saveOrAddGroupTag()">添加</button>
+        </div>
+        <!-- 模态框底部按钮：保存 + 取消 -->
+        <div class="flex justify-end gap-3 mt-4">
+            <button class="bg-indigo-500 hover:bg-indigo-600 text-white font-bold py-2 px-4 rounded-lg transition shadow-md" onclick="saveTagGroup()">保存并关闭</button>
+            <button class="bg-gray-400 hover:bg-gray-500 text-white font-bold py-2 px-4 rounded-lg transition shadow-md" onclick="closeModal()">取消</button>
+        </div>
+    </div>
+</div>
+
+<!-- 自定义删除确认弹窗：确认删除标签/标签组 -->
+<div id="delete-confirm-modal" class="modal hidden">
+    <div class="modal-content max-w-md">
+        <div class="text-center py-6">
+            <div class="text-red-500 text-5xl mb-4">⚠️</div>
+            <h3 class="text-xl font-bold text-gray-800 mb-2" id="delete-confirm-title">确认删除？</h3>
+            <p class="text-gray-600 mb-6" id="delete-confirm-message">你确定要删除这个模块吗？此操作无法撤销。</p>
+            <!-- 确认/取消按钮 -->
+            <div class="flex gap-3">
+                <button id="delete-confirm-cancel" class="flex-1 bg-gray-200 hover:bg-gray-300 text-gray-800 font-bold py-2 px-4 rounded-lg transition">
+                    取消
+                </button>
+                <button id="delete-confirm-ok" class="flex-1 bg-red-500 hover:bg-red-600 text-white font-bold py-2 px-4 rounded-lg transition">
+                    确认删除
+                </button>
+            </div>
+        </div>
+    </div>
+</div>
+
+<!-- 工作区创建模态框 -->
+<div id="workspace-create-modal" class="modal">
+    <div class="modal-content workspace-modal-content">
+        <div class="flex justify-between items-center border-b pb-3 mb-4">
+            <h2 class="text-2xl font-bold text-gray-800">创建工作区</h2>
+            <span class="close" onclick="closeWorkspaceModal('workspace-create-modal')">&times;</span>
+        </div>
+        <div class="workspace-form-group">
+            <label for="new-workspace-name">工作区名称</label>
+            <input type="text" id="new-workspace-name" class="w-full p-2 border border-gray-300 rounded-lg" placeholder="输入工作区名称">
+        </div>
+        <div class="flex justify-end gap-3 mt-4">
+            <button class="bg-indigo-500 hover:bg-indigo-600 text-white font-bold py-2 px-4 rounded-lg transition" onclick="createWorkspace()">创建</button>
+            <button class="bg-gray-400 hover:bg-gray-500 text-white font-bold py-2 px-4 rounded-lg transition" onclick="closeWorkspaceModal('workspace-create-modal')">取消</button>
+        </div>
+    </div>
+</div>
+
+<!-- 工作区重命名模态框 -->
+<div id="workspace-rename-modal" class="modal">
+    <div class="modal-content workspace-modal-content">
+        <div class="flex justify-between items-center border-b pb-3 mb-4">
+            <h2 class="text-2xl font-bold text-gray-800">重命名工作区</h2>
+            <span class="close" onclick="closeWorkspaceModal('workspace-rename-modal')">&times;</span>
+        </div>
+        <div class="workspace-form-group">
+            <label for="rename-workspace-name">工作区名称</label>
+            <input type="text" id="rename-workspace-name" class="w-full p-2 border border-gray-300 rounded-lg" placeholder="输入新的工作区名称">
+        </div>
+        <div class="flex justify-end gap-3 mt-4">
+            <button class="bg-indigo-500 hover:bg-indigo-600 text-white font-bold py-2 px-4 rounded-lg transition" onclick="renameWorkspace()">重命名</button>
+            <button class="bg-gray-400 hover:bg-gray-500 text-white font-bold py-2 px-4 rounded-lg transition" onclick="closeWorkspaceModal('workspace-rename-modal')">取消</button>
+        </div>
+    </div>
+</div>
+
+<!-- 工作区删除确认模态框 -->
+<div id="workspace-delete-modal" class="modal">
+    <div class="modal-content workspace-modal-content">
+        <div class="flex justify-between items-center border-b pb-3 mb-4">
+            <h2 class="text-2xl font-bold text-gray-800">删除工作区</h2>
+            <span class="close" onclick="closeWorkspaceModal('workspace-delete-modal')">&times;</span>
+        </div>
+        <div class="text-center py-4">
+            <div class="text-red-500 text-5xl mb-4">⚠️</div>
+            <h3 class="text-xl font-bold text-gray-800 mb-2">确认删除工作区？</h3>
+            <p class="text-gray-600 mb-6" id="workspace-delete-message">你确定要删除工作区 "<span id="workspace-to-delete-name"></span>" 吗？此操作无法撤销，所有相关提示词数据将丢失。</p>
+        </div>
+        <div class="flex justify-end gap-3 mt-4">
+            <button class="bg-red-500 hover:bg-red-600 text-white font-bold py-2 px-4 rounded-lg transition" onclick="deleteWorkspace()">确认删除</button>
+            <button class="bg-gray-400 hover:bg-gray-500 text-white font-bold py-2 px-4 rounded-lg transition" onclick="closeWorkspaceModal('workspace-delete-modal')">取消</button>
+        </div>
+    </div>
+</div>
+
+<script>
+    // 工作区数据结构
+    let workspaces = {
+        currentWorkspaceId: null,
+        workspaceList: []
+    };
+
+    // 核心数据：存储当前工作区的提示词模块（标签、标签组、参数）
+    let promptData = [];
+
+    // 当前编辑的标签组索引（-1 表示无）
+    let currentEditingGroupIndex = -1;
+    // 当前编辑的标签索引（-1 表示无）
+    let editingIndex = -1;
+    // 当前编辑的标签组选项索引（-1 表示无）
+    let currentEditingGroupTagIndex = -1;
+    // 当前要删除的模块索引（-1 表示无）
+    let currentDeleteIndex = -1;
+    // 当前鼠标悬停的模块索引
+    let hoveredIndex = -1;
+    
+    // 标签组选项拖拽相关变量
+    let groupTagDraggedItem = null; // 正在拖拽的标签组选项元素
+    let groupTagDragStartIndex = -1; // 拖拽起始索引
+    let groupTagPlaceholder = null; // 拖拽占位符
+    let isGroupTagDragging = false; // 是否正在拖拽标签组选项
+
+    // 拖拽相关变量
+    let draggedItem = null; // 正在拖拽的元素
+    let dragStartIndex = -1; // 拖拽起始索引
+    let placeholder = null; // 拖拽占位符
+    let isDragging = false; // 是否正在拖拽
+
+    // 防抖保存相关变量
+    let saveTimeout = null;
+    let SAVE_DEBOUNCE_DELAY = 10; // 500ms防抖延迟
+
+    /**
+     * 生成唯一ID：用于标签组、参数标签等的唯一标识
+     * @returns {string} 唯一ID字符串
+     */
+    function generateId() {
+        return `g${Date.now()}_${Math.random().toString(36).substring(2, 9)}`;
+    }
+
+    /**
+     * 生成工作区唯一ID
+     * @returns {string} 工作区唯一ID
+     */
+    function generateWorkspaceId() {
+        return `workspace_${Date.now()}_${Math.random().toString(36).substring(2, 9)}`;
+    }
+
+    /**
+     * HTML转义：防止XSS攻击，将特殊字符转义为HTML实体
+     * @param {string} unsafe - 未转义的字符串
+     * @returns {string} 转义后的字符串
+     */
+    function escapeHtml(unsafe) {
+        if (!unsafe) return '';
+        return unsafe
+             .replace(/&/g, "&amp;")
+             .replace(/</g, "&lt;")
+             .replace(/>/g, "&gt;")
+             .replace(/"/g, "&quot;")
+             .replace(/'/g, "&#039;");
+    }
+
+    /**
+     * 判断元素是否在视口中
+     * @param {HTMLElement} element - 要判断的元素
+     * @returns {boolean} 存在返回true，否则false
+     */
+    function isElementInViewport(element) {
+        const rect = element.getBoundingClientRect();
+        return (
+            rect.top >= 0 &&
+            rect.left >= 0 &&
+            rect.bottom <= (window.innerHeight || document.documentElement.clientHeight) &&
+            rect.right <= (window.innerWidth || document.documentElement.clientWidth)
+        );
+    }
+
+    /**
+     * 滚动到元素：平滑滚动到指定元素
+     * @param {HTMLElement} element - 要滚动到的元素
+     */
+    function scrollToElement(element) {
+        if (!element) return;
+        element.scrollIntoView({
+            behavior: 'smooth',
+            block: 'center'
+        });
+    }
+
+    /**
+     * 括号验证函数：验证输入文本中的括号是否闭合、匹配
+     * @param {string} text - 要验证的文本
+     * @returns {object} 验证结果：{valid: 布尔值, error: 错误信息, line: 错误行, position: 错误位置, context: 错误上下文}
+     */
+    function validateBrackets(text) {
+        const stack = []; // 栈：存储开括号及其位置
+        const bracketPairs = { ')': '(', '}': '{', '>': '<' }; // 括号配对规则
+        const openingBrackets = new Set(Object.values(bracketPairs)); // 开括号集合
+        const closingBrackets = new Set(Object.keys(bracketPairs)); // 闭括号集合
+        
+        const lines = text.split('\n'); // 按行拆分文本，便于报告行号
+        
+        // 遍历每行文本，检查括号
+        for (let lineNumber = 0; lineNumber < lines.length; lineNumber++) {
+            const line = lines[lineNumber];
+            for (let charIndex = 0; charIndex < line.length; charIndex++) {
+                const char = line[charIndex];
+                
+                // 遇到开括号，入栈记录位置
+                if (openingBrackets.has(char)) {
+                    stack.push({
+                        bracket: char,
+                        line: lineNumber + 1,  // 行号从1开始
+                        position: charIndex + 1  // 位置从1开始
+                    });
+                } 
+                // 遇到闭括号，出栈匹配
+                else if (closingBrackets.has(char)) {
+                    // 栈为空，说明没有匹配的开括号
+                    if (stack.length === 0) {
+                        return {
+                            valid: false,
+                            error: `多余的闭合括号 '${char}'`,
+                            line: lineNumber + 1,
+                            position: charIndex + 1,
+                            context: line
+                        };
+                    }
+                    
+                    const lastOpening = stack.pop();
+                    // 括号类型不匹配
+                    if (lastOpening.bracket !== bracketPairs[char]) {
+                        return {
+                            valid: false,
+                            error: `括号类型不匹配: 预期 '${bracketPairs[char]}' 对应 '${char}', 但找到 '${lastOpening.bracket}'`,
+                            line: lineNumber + 1,
+                            position: charIndex + 1,
+                            context: line,
+                            openingLine: lastOpening.line,
+                            openingPosition: lastOpening.position
+                        };
+                    }
+                }
+            }
+        }
+        
+        // 栈不为空，说明有未闭合的开括号
+        if (stack.length > 0) {
+            const unclosed = stack[stack.length - 1];
+            const line = lines[unclosed.line - 1] || '';
+            
+            return {
+                valid: false,
+                error: `未闭合的括号 '${unclosed.bracket}'`,
+                line: unclosed.line,
+                position: unclosed.position,
+                context: line
+            };
+        }
+        
+        // 所有括号都匹配且闭合
+        return { valid: true };
+    }
+
+    /**
+     * 显示括号错误信息：在输入区下方显示错误详情和位置
+     * @param {object} error - 错误信息对象（来自validateBrackets）
+     */
+    function showBracketError(error) {
+        const errorContainer = document.getElementById('bracket-error-container');
+        const errorMessage = document.getElementById('bracket-error-message');
+        const errorExample = document.getElementById('bracket-error-example');
+        
+        // 构建错误描述信息
+        let message = `<strong>括号错误:</strong> ${error.error}<br>`;
+        message += `位置: 第 ${error.line} 行，第 ${error.position} 个字符`;
+        
+        // 若有不匹配的开括号，补充其位置信息
+        if (error.openingLine) {
+            message += `<br>相关的开括号位于: 第 ${error.openingLine} 行，第 ${error.openingPosition} 个字符`;
+        }
+        
+        errorMessage.innerHTML = message;
+        
+        // 构建错误上下文示例，高亮错误位置
+        const contextLine = error.context;
+        const errorPos = error.position - 1; // 转换为0-based索引
+        
+        // 截取错误位置前后的文本（最多50个字符，避免过长）
+        const start = Math.max(0, errorPos - 20);
+        const end = Math.min(contextLine.length, errorPos + 30);
+        const displayText = contextLine.substring(start, end);
+        const caretPos = errorPos - start;
+        
+        // 生成带光标提示的错误行HTML
+        const errorLineHtml = `
+            <div class="error-line">
+                <span class="error-line-number">${error.line}</span>
+                ${displayText.substring(0, caretPos)}
+                <span class="error-highlight">${displayText[caretPos] || ' '}</span>
+                ${displayText.substring(caretPos + 1)}
+                <div class="error-line">
+                    <span class="error-line-number"></span>
+                    ${' '.repeat(caretPos)}<span class="error-caret">^ 错误位置</span>
+                </div>
+            </div>
+        `;
+        
+        errorExample.innerHTML = errorLineHtml;
+        
+        // 显示错误容器，并高亮输入框
+        errorContainer.style.display = 'block';
+        const inputElement = document.getElementById('prompt-input');
+        inputElement.style.borderColor = '#dc2626';
+        inputElement.style.boxShadow = '0 0 0 2px rgba(220, 38, 38, 0.2)';
+        
+        // 滚动到错误信息区域
+        errorContainer.scrollIntoView({ behavior: 'smooth', block: 'center' });
+    }
+
+    /**
+     * 清除括号错误信息：隐藏错误容器，恢复输入框样式
+     */
+    function clearBracketErrors() {
+        const errorContainer = document.getElementById('bracket-error-container');
+        errorContainer.style.display = 'none';
+        
+        const inputElement = document.getElementById('prompt-input');
+        inputElement.style.borderColor = '';
+        inputElement.style.boxShadow = '';
+    }
+
+    /**
+     * 带括号的文本拆分：按逗号拆分文本，但忽略括号内的逗号
+     * @param {string} text - 要拆分的文本
+     * @returns {array} 拆分后的文本数组
+     */
+    function splitWithParentheses(text) {
+        const parts = []; // 拆分结果数组
+        let currentPart = ''; // 当前正在拼接的部分
+        let parenthesesCount = 0; // 圆括号计数器
+        let braceCount = 0; // 花括号计数器
+        let angleBracketCount = 0; // 尖括号计数器
+        let prevAllClosed = true; // 上一个字符时所有括号是否闭合
+
+        // 遍历每个字符
+        for (let i = 0; i < text.length; i++) {
+            const char = text[i];
+            
+            const isOpeningBracket = char === '(' || char === '{' || char === '<';
+            const allClosed = parenthesesCount === 0 && braceCount === 0 && angleBracketCount === 0;
+
+            // 遇到开括号且所有括号都闭合，说明当前部分结束，添加到结果数组
+            if (isOpeningBracket && allClosed) {
+                const trimmed = currentPart.trim();
+                if (trimmed) {
+                    parts.push(trimmed);
+                    currentPart = '';
+                }
+            }
+
+            // 更新各类括号计数器
+            if (char === '(') parenthesesCount++;
+            else if (char === ')') parenthesesCount--;
+            else if (char === '{') braceCount++;
+            else if (char === '}') braceCount--;
+            else if (char === '<') angleBracketCount++;
+            else if (char === '>') angleBracketCount--;
+
+            const newAllClosed = parenthesesCount === 0 && braceCount === 0 && angleBracketCount === 0;
+            
+            // 所有括号从非闭合变为闭合，说明当前部分结束，添加到结果数组
+            if (!prevAllClosed && newAllClosed) {
+                currentPart += char;
+                const trimmed = currentPart.trim();
+                if (trimmed) {
+                    parts.push(trimmed);
+                    currentPart = '';
+                }
+            } 
+            // 所有括号都闭合且遇到逗号（英文或中文），当前部分结束，添加到结果数组
+            else if (newAllClosed && (char === ',' || char === '，')) {
+                const trimmed = currentPart.trim();
+                if (trimmed) {
+                    parts.push(trimmed);
+                    currentPart = '';
+                }
+                continue;
+            } 
+            // 其他情况，拼接字符到当前部分
+            else {
+                currentPart += char;
+            }
+            
+            prevAllClosed = newAllClosed;
+        }
+
+        // 处理最后剩余的部分
+        const finalTrimmed = currentPart.trim();
+        if (finalTrimmed) {
+            parts.push(finalTrimmed);
+        }
+
+        return parts;
+    }
+
+    /**
+     * 保存数据到服务器JSON文件
+     * @param {string} filename - 文件名（不带.json后缀）
+     * @param {object} data - 要保存的数据
+     * @returns {Promise<boolean>} 保存是否成功
+     */
+    async function saveToServer(filename, data) {
+        try {
+            const formData = new FormData();
+            formData.append('filename', filename);
+            formData.append('data', JSON.stringify(data, null, 2));
+            
+            const response = await fetch('api/json/w', {
+                method: 'POST',
+                body: formData
+            });
+            
+            const result = await response.json();
+            if (result.ok) {
+                console.log(`数据已保存到 ${filename}.json`);
+                return true;
+            } else {
+                console.error(`保存 ${filename}.json 失败:`, result.error);
+                return false;
+            }
+        } catch (error) {
+            console.error(`保存 ${filename}.json 请求失败:`, error);
+            return false;
+        }
+    }
+
+    /**
+     * 从服务器JSON文件加载数据
+     * @param {string} filename - 文件名（不带.json后缀）
+     * @param {any} defaultValue - 读取失败时返回的默认值
+     * @returns {Promise<any>} 加载的数据或默认值
+     */
+    async function loadFromServer(filename, defaultValue = null) {
+        try {
+            const formData = new FormData();
+            formData.append('filename', filename);
+            
+            const response = await fetch('api/json/r', {
+                method: 'POST',
+                body: formData
+            });
+            
+            if (response.ok) {
+                const data = await response.json();
+                console.log(`数据已从 ${filename}.json 加载`);
+                return data;
+            } else {
+                console.log(`${filename}.json 不存在，使用默认值`);
+                return defaultValue;
+            }
+        } catch (error) {
+            console.log(`加载 ${filename}.json 失败，使用默认值:`, error);
+            return defaultValue;
+        }
+    }
+
+    /**
+     * 保存工作区配置到服务器
+     */
+    async function saveWorkspaceConfig() {
+        return await saveToServer('workspace_config', workspaces);
+    }
+
+    /**
+     * 保存当前工作区的提示词数据到服务器
+     */
+    async function saveCurrentWorkspaceData() {
+        if (!workspaces.currentWorkspaceId) return false;
+        
+        const currentWorkspace = workspaces.workspaceList.find(w => w.id === workspaces.currentWorkspaceId);
+        if (!currentWorkspace) return false;
+        
+        // 更新工作区的promptData
+        currentWorkspace.promptData = [...promptData];
+        currentWorkspace.lastModified = new Date().toISOString();
+        
+        // 保存到单独的工作区文件
+        const filename = currentWorkspace.id;
+        const workspaceData = {
+            promptData: currentWorkspace.promptData,
+            lastModified: currentWorkspace.lastModified
+        };
+        
+        return await saveToServer(filename, workspaceData);
+    }
+
+    /**
+     * 防抖保存所有数据
+     */
+    async function debouncedSaveAllData() {
+        // 清除之前的定时器
+        if (saveTimeout) {
+            clearTimeout(saveTimeout);
+        }
+        
+        // 设置新的定时器
+        saveTimeout = setTimeout(async () => {
+            try {
+                // 保存当前工作区数据
+                await saveCurrentWorkspaceData();
+                
+                // 保存工作区配置
+                await saveWorkspaceConfig();
+                
+                console.log('所有数据已保存到服务器');
+            } catch (error) {
+                console.error('保存数据失败:', error);
+            }
+        }, SAVE_DEBOUNCE_DELAY);
+    }
+
+    /**
+     * 加载工作区配置和数据
+     */
+    async function loadAllData() {
+        try {
+            // 加载工作区配置
+            const loadedConfig = await loadFromServer('workspace_config', {
+                currentWorkspaceId: null,
+                workspaceList: []
+            });
+            
+            workspaces = loadedConfig;
+            
+            // 如果没有工作区，创建默认工作区
+            if (workspaces.workspaceList.length === 0) {
+                createDefaultWorkspace();
+                await saveWorkspaceConfig();
+            }
+            
+            // 设置当前工作区ID（如果为空，选择第一个）
+            if (!workspaces.currentWorkspaceId && workspaces.workspaceList.length > 0) {
+                workspaces.currentWorkspaceId = workspaces.workspaceList[0].id;
+            }
+            
+            // 加载当前工作区数据
+            if (workspaces.currentWorkspaceId) {
+                await loadWorkspaceData(workspaces.currentWorkspaceId);
+            }
+            
+            console.log('所有数据已从服务器加载');
+            return true;
+        } catch (error) {
+            console.error('加载数据失败:', error);
+            return false;
+        }
+    }
+
+    /**
+     * 拖拽开始：记录拖拽起始状态，创建占位符
+     * @param {number} index - 拖拽元素的索引
+     * @param {Event} e - 鼠标事件对象
+     */
+    function startDrag(index, e) {
+        // 只有从拖拽手柄开始的拖拽才有效
+        const dragHandle = e.target.closest('.drag-handle');
+        if (!dragHandle) return;
+        
+        e.preventDefault();
+        dragStartIndex = index;
+        draggedItem = document.querySelector(`#main-tag-container > div:nth-child(${index + 1})`);
+        
+        if (!draggedItem) return;
+        
+        // 记录元素原始位置和尺寸
+        const rect = draggedItem.getBoundingClientRect();
+        const handleRect = dragHandle.getBoundingClientRect();
+        
+        // 计算鼠标相对于拖拽手柄的位置（精确拖拽定位）
+        const originalX = e.clientX - handleRect.left;
+        const originalY = e.clientY - handleRect.top;
+        
+        // 创建拖拽占位符（显示拖拽位置）
+        placeholder = document.createElement('div');
+        placeholder.className = 'drag-placeholder';
+        placeholder.style.width = `${rect.width}px`;
+        placeholder.style.height = `${rect.height}px`;
+        draggedItem.parentNode.insertBefore(placeholder, draggedItem);
+        
+        // 设置拖拽元素样式（悬浮、固定定位）
+        draggedItem.classList.add('dragging');
+        draggedItem.style.width = `${rect.width}px`;
+        draggedItem.style.height = `${rect.height}px`;
+        draggedItem.style.left = `${e.clientX - originalX}px`;
+        draggedItem.style.top = `${e.clientY - originalY}px`;
+        
+        // 存储相对位置，供拖拽移动时使用
+        draggedItem.dataset.offsetX = originalX;
+        draggedItem.dataset.offsetY = originalY;
+        
+        isDragging = true;
+        
+        // 添加鼠标移动和释放事件监听（全局，确保拖拽过程中持续响应）
+        document.addEventListener('mousemove', handleDragMove);
+        document.addEventListener('mouseup', endDrag);
+    }
+
+    /**
+     * 拖拽移动：更新拖拽元素位置，调整占位符位置
+     * @param {Event} e - 鼠标事件对象
+     */
+    function handleDragMove(e) {
+        if (!isDragging || !draggedItem || !placeholder) return;
+        
+        // 获取拖拽元素尺寸和初始偏移量
+        const style = window.getComputedStyle(draggedItem);
+        const width = parseInt(style.width);
+        const height = parseInt(style.height);
+        const offsetX = parseInt(draggedItem.dataset.offsetX);
+        const offsetY = parseInt(draggedItem.dataset.offsetY);
+        
+        // 更新拖拽元素位置（基于鼠标实时位置）
+        draggedItem.style.left = `${e.clientX - offsetX}px`;
+        draggedItem.style.top = `${e.clientY - offsetY}px`;
+        
+        // 找到所有标签元素（排除拖拽元素和占位符）
+        const container = document.getElementById('main-tag-container');
+        const items = Array.from(container.children).filter(child => 
+            child !== draggedItem && child !== placeholder
+        );
+        
+        // 获取容器位置和鼠标在容器内的相对坐标
+        const containerRect = container.getBoundingClientRect();
+        const mouseX = e.clientX - containerRect.left; // 鼠标在容器内的X坐标
+        const mouseY = e.clientY - containerRect.top;  // 鼠标在容器内的Y坐标
+        
+        // 1. 按行分组：同一行的元素top值接近（误差≤2px）
+        const rows = [];
+        items.forEach(item => {
+            const rect = item.getBoundingClientRect();
+            const itemTop = rect.top - containerRect.top; // 元素在容器内的top
+            const itemBottom = rect.bottom - containerRect.top;
+            const itemLeft = rect.left - containerRect.left; // 元素在容器内的left
+            const itemRight = rect.right - containerRect.left;
+            
+            // 尝试加入已有行（top值接近）
+            let added = false;
+            for (const row of rows) {
+                const rowTop = row[0].top;
+                if (Math.abs(itemTop - rowTop) < 2) { // 认为是同一行
+                    row.push({ element: item, top: itemTop, bottom: itemBottom, left: itemLeft, right: itemRight });
+                    added = true;
+                    break;
+                }
+            }
+            // 未加入任何行，创建新行
+            if (!added) {
+                rows.push([{ element: item, top: itemTop, bottom: itemBottom, left: itemLeft, right: itemRight }]);
+            }
+        });
+        
+        // 2. 对每行元素按left坐标排序（从左到右）
+        rows.forEach(row => {
+            row.sort((a, b) => a.left - b.left);
+        });
+        
+        // 3. 按行的top值排序（从上到下）
+        rows.sort((a, b) => a[0].top - b[0].top);
+        
+        // 4. 找到鼠标所在的行
+        let targetRow = null;
+        for (const row of rows) {
+            const rowTop = row[0].top;
+            const rowBottom = row[0].bottom;
+            if (mouseY >= rowTop - 10 && mouseY <= rowBottom + 10) { // 鼠标在该行附近（±10px）
+                targetRow = row;
+                break;
+            }
+        }
+        // 未找到行，默认为最后一行
+        if (!targetRow && rows.length > 0) {
+            targetRow = rows[rows.length - 1];
+        }
+        
+        // 5. 确定占位符插入位置
+        let insertBefore = null;
+        if (targetRow) {
+            // 在目标行内根据X坐标找插入点（鼠标在元素左侧则插入到该元素前）
+            for (const item of targetRow) {
+                if (mouseX < item.left + item.element.offsetWidth / 2) { 
+                    insertBefore = item.element;
+                    break;
+                }
+            }
+            // 鼠标在所有元素右侧，插入到该行最后
+            if (insertBefore === null) {
+                insertBefore = targetRow[targetRow.length - 1].element.nextSibling;
+            }
+        } else if (items.length === 0) {
+            // 没有其他元素，直接插入容器
+            insertBefore = null;
+        } else {
+            // 鼠标在第一行上方或最后一行下方
+            if (mouseY < rows[0][0].top) {
+                // 第一行上方，插入到最前面
+                insertBefore = rows[0][0].element;
+            } else {
+                // 最后一行下方，插入到最后
+                insertBefore = null;
+            }
+        }
+        
+        // 执行插入占位符
+        if (insertBefore) {
+            container.insertBefore(placeholder, insertBefore);
+        } else {
+            container.appendChild(placeholder);
+        }
+    }
+
+    /**
+     * 拖拽结束：更新数据顺序，清理拖拽状态，重新渲染
+     */
+    function endDrag() {
+        if (!isDragging || !draggedItem || !placeholder) return;
+        
+        // 移除全局事件监听
+        document.removeEventListener('mousemove', handleDragMove);
+        document.removeEventListener('mouseup', endDrag);
+        
+        // 计算新位置（占位符的索引）
+        const container = document.getElementById('main-tag-container');
+        const children = Array.from(container.children);
+        const newIndex = children.indexOf(placeholder);
+        
+        // 更新数据顺序（如果位置发生变化）
+        if (newIndex !== -1 && newIndex !== dragStartIndex) {
+            const [movedItem] = promptData.splice(dragStartIndex, 1);
+            promptData.splice(newIndex, 0, movedItem);
+        }
+        
+        // 清理拖拽样式和元素
+        draggedItem.classList.remove('dragging');
+        draggedItem.removeAttribute('style');
+        placeholder.remove();
+        
+        // 重新渲染标签（更新顺序）
+        renderMainTags();
+        // 防抖保存数据
+        debouncedSaveAllData();
+        
+        // 重置拖拽变量
+        draggedItem = null;
+        placeholder = null;
+        dragStartIndex = -1;
+        isDragging = false;
+    }
+
+    /**
+     * 页面加载完成后初始化：绑定事件、加载数据
+     */
+    document.addEventListener('DOMContentLoaded', async () => {
+        const mainTagInput = document.getElementById('main-tag-input');
+        const groupContentInput = document.getElementById('group-tag-content-input');
+        const promptInput = document.getElementById('prompt-input');
+        
+        // 输入框输入时清除括号错误提示
+        promptInput.addEventListener('input', clearBracketErrors);
+        
+        // 主标签输入框按键事件：Enter或逗号添加标签
+        mainTagInput.addEventListener('keydown', (e) => {
+            if (isDragging) return; // 拖拽时忽略键盘事件
+            
+            // 支持英文逗号和中文逗号
+            if (e.key === 'Enter' || e.key === ',' || e.key === '，') {
+                e.preventDefault();
+                const content = mainTagInput.value.trim();
+                
+                if (content.length > 0 && content !== ',' && content !== '，') {
+                    if (editingIndex !== -1) {
+                        // 正在编辑标签，执行更新
+                        updateTag();
+                    } else {
+                        // 新增标签
+                        addTag(content);
+                        mainTagInput.value = '';
+                    }
+                }
+                
+                // 输入逗号后保持焦点（便于连续输入）
+                if ((e.key === ',' || e.key === '，') && editingIndex === -1) {
+                    setTimeout(() => mainTagInput.focus(), 0);
+                }
+            }
+        });
+
+        // 标签组选项输入框按键事件：Enter添加/更新选项
+        groupContentInput.addEventListener('keydown', (e) => {
+            if (isDragging) return; // 拖拽时忽略键盘事件
+            
+            if (e.key === 'Enter') {
+                e.preventDefault();
+                saveOrAddGroupTag();
+            }
+        });
+
+        // 防止拖拽时选中文本
+        document.addEventListener('selectstart', (e) => {
+            if (isDragging) {
+                e.preventDefault();
+                return false;
+            }
+        });
+
+        // 绑定删除确认弹窗事件
+        document.getElementById('delete-confirm-ok').addEventListener('click', confirmDelete);
+        document.getElementById('delete-confirm-cancel').addEventListener('click', cancelDelete);
+        document.getElementById('delete-confirm-modal').addEventListener('click', (e) => {
+            if (e.target.id === 'delete-confirm-modal') {
+                cancelDelete();
+            }
+        });
+
+        // 添加键盘事件监听
+        document.addEventListener('keydown', handleKeyDown);
+
+        // 初始化工作区系统
+        initializeWorkspaceSystem();
+        
+        // 从服务器加载数据
+        const dataLoaded = await loadAllData();
+        
+        // 如果没有加载到数据或数据为空，使用默认测试数据
+        if (!dataLoaded || (workspaces.workspaceList.length === 0) || 
+            (workspaces.currentWorkspaceId && workspaces.workspaceList.find(w => w.id === workspaces.currentWorkspaceId)?.promptData?.length === 0)) {
+            
+            // 确保至少有一个工作区
+            if (workspaces.workspaceList.length === 0) {
+                createDefaultWorkspace();
+                await saveWorkspaceConfig();
+            }
+            
+            // 为当前工作区添加示例数据（如果为空）
+            const currentWorkspace = workspaces.workspaceList.find(w => w.id === workspaces.currentWorkspaceId);
+            if (currentWorkspace && (!currentWorkspace.promptData || currentWorkspace.promptData.length === 0)) {
+                currentWorkspace.promptData = [
+                    { type: 'tag', content: '测试两种权重格式：', isComma: true},
+                    { type: 'group', 
+                    name: '动物选择1', 
+                    options: [
+                        { content: 'dog', weight: '2.00' },
+                        { content: 'cat', weight: '1.00' }
+                    ],
+                    outerWeight: 0.35,
+                    id: generateId(),
+                    isComma: true
+                    },
+                    { type: 'group', 
+                    name: '动物选择2', 
+                    options: [
+                        { content: 'dog', weight: '2.00' },
+                        { content: 'cat', weight: '1.00' }
+                    ],
+                    outerWeight: 0.4,
+                    id: generateId(),
+                    isComma: false
+                    },
+                ];
+                // 同步当前promptData
+                promptData = [...currentWorkspace.promptData];
+                
+                // 保存示例数据到服务器
+                await saveCurrentWorkspaceData();
+            }
+        }
+        
+        // 渲染工作区选择器和主标签
+        renderWorkspaceSelector();
+        renderMainTags();
+    });
+
+    /**
+     * 初始化工作区系统
+     */
+    function initializeWorkspaceSystem() {
+        // 初始化工作区数据结构
+        workspaces = {
+            currentWorkspaceId: null,
+            workspaceList: []
+        };
+    }
+
+    /**
+     * 创建默认工作区
+     */
+    function createDefaultWorkspace() {
+        const defaultWorkspace = {
+            id: generateWorkspaceId(),
+            name: '默认工作区',
+            promptData: [],
+            createdAt: new Date().toISOString(),
+            lastModified: new Date().toISOString()
+        };
+        
+        workspaces.workspaceList.push(defaultWorkspace);
+        workspaces.currentWorkspaceId = defaultWorkspace.id;
+        
+        // 同步当前promptData
+        promptData = [...defaultWorkspace.promptData];
+    }
+
+    /**
+     * 渲染工作区选择器
+     */
+    function renderWorkspaceSelector() {
+        const selector = document.getElementById('workspace-selector');
+        const modifiedInfo = document.getElementById('workspace-modified-info');
+        
+        // 清空选择器
+        selector.innerHTML = '';
+        
+        // 添加所有工作区选项
+        workspaces.workspaceList.forEach(workspace => {
+            const option = document.createElement('option');
+            option.value = workspace.id;
+            option.textContent = workspace.name;
+            if (workspace.id === workspaces.currentWorkspaceId) {
+                option.selected = true;
+                
+                // 更新修改时间信息
+                const modifiedDate = new Date(workspace.lastModified);
+                modifiedInfo.textContent = `最后修改: ${modifiedDate.toLocaleString()}`;
+            }
+            selector.appendChild(option);
+        });
+        
+        // 绑定选择器变更事件
+        selector.onchange = function() {
+            switchWorkspace(this.value);
+        };
+    }
+
+    /**
+     * 切换工作区
+     * @param {string} workspaceId - 要切换的工作区ID
+     */
+    async function switchWorkspace(workspaceId) {
+        // 保存当前工作区状态
+        await saveCurrentWorkspaceData();
+        
+        // 更新当前工作区ID
+        workspaces.currentWorkspaceId = workspaceId;
+        
+        // 加载新工作区数据
+        await loadWorkspaceData(workspaceId);
+        
+        // 更新UI
+        renderWorkspaceSelector();
+        renderMainTags();
+        
+        // 保存工作区配置
+        await saveWorkspaceConfig();
+        
+        // 显示切换成功反馈
+        const workspace = workspaces.workspaceList.find(w => w.id === workspaceId);
+        showCopyFeedback(`已切换到工作区: ${workspace.name}`);
+    }
+
+    /**
+     * 保存当前工作区状态（仅更新内存中的数据）
+     */
+    function saveCurrentWorkspaceState() {
+        if (!workspaces.currentWorkspaceId) return;
+        
+        const currentWorkspace = workspaces.workspaceList.find(w => w.id === workspaces.currentWorkspaceId);
+        if (currentWorkspace) {
+            currentWorkspace.promptData = [...promptData];
+            currentWorkspace.lastModified = new Date().toISOString();
+        }
+    }
+
+    /**
+     * 加载工作区数据
+     * @param {string} workspaceId - 要加载的工作区ID
+     */
+    async function loadWorkspaceData(workspaceId) {
+        const workspace = workspaces.workspaceList.find(w => w.id === workspaceId);
+        if (workspace) {
+            // 尝试从独立文件加载工作区数据
+            const filename = workspaceId;
+            const workspaceData = await loadFromServer(filename, { promptData: [], lastModified: workspace.lastModified });
+            
+            // 更新工作区数据
+            workspace.promptData = workspaceData.promptData || [];
+            workspace.lastModified = workspaceData.lastModified || workspace.lastModified;
+            
+            promptData = [...workspace.promptData];
+        } else {
+            promptData = [];
+        }
+        
+        // 取消任何编辑状态
+        cancelEdit();
+        cancelEditGroupTag();
+        closeModal();
+    }
+
+    /**
+     * 显示创建工作区模态框
+     */
+    function showCreateWorkspaceModal() {
+        document.getElementById('new-workspace-name').value = '';
+        document.getElementById('workspace-create-modal').style.display = 'block';
+        disableBodyScroll();
+    }
+
+    /**
+     * 显示重命名工作区模态框
+     */
+    function showRenameWorkspaceModal() {
+        const currentWorkspace = workspaces.workspaceList.find(w => w.id === workspaces.currentWorkspaceId);
+        if (!currentWorkspace) return;
+        
+        document.getElementById('rename-workspace-name').value = currentWorkspace.name;
+        document.getElementById('workspace-rename-modal').style.display = 'block';
+        disableBodyScroll();
+    }
+
+    /**
+     * 显示删除工作区模态框
+     */
+    function showDeleteWorkspaceModal() {
+        const currentWorkspace = workspaces.workspaceList.find(w => w.id === workspaces.currentWorkspaceId);
+        if (!currentWorkspace) return;
+        
+        // 如果是最后一个工作区，不允许删除
+        if (workspaces.workspaceList.length <= 1) {
+            alert('不能删除最后一个工作区！');
+            return;
+        }
+        
+        document.getElementById('workspace-to-delete-name').textContent = currentWorkspace.name;
+        document.getElementById('workspace-delete-modal').style.display = 'block';
+        disableBodyScroll();
+    }
+
+    /**
+     * 创建工作区
+     */
+    async function createWorkspace() {
+        const nameInput = document.getElementById('new-workspace-name');
+        const name = nameInput.value.trim();
+        
+        if (!name) {
+            alert('请输入工作区名称！');
+            return;
+        }
+        
+        // 检查名称是否已存在
+        if (workspaces.workspaceList.some(w => w.name === name)) {
+            alert('工作区名称已存在，请使用其他名称！');
+            return;
+        }
+        
+        // 保存当前工作区状态到服务器
+        await saveCurrentWorkspaceData();
+        
+        // 创建新工作区
+        const newWorkspace = {
+            id: generateWorkspaceId(),
+            name: name,
+            promptData: [],
+            createdAt: new Date().toISOString(),
+            lastModified: new Date().toISOString()
+        };
+        
+        workspaces.workspaceList.push(newWorkspace);
+        
+        // 切换到新工作区
+        workspaces.currentWorkspaceId = newWorkspace.id;
+        promptData = [];
+        
+        // 保存新工作区数据到独立文件
+        const filename = `workspace_${newWorkspace.id}`;
+        await saveToServer(filename, {
+            promptData: [],
+            lastModified: newWorkspace.lastModified
+        });
+        
+        // 更新UI
+        renderWorkspaceSelector();
+        renderMainTags();
+        
+        // 保存工作区配置并关闭模态框
+        await saveWorkspaceConfig();
+        closeWorkspaceModal('workspace-create-modal');
+        
+        // 显示成功反馈
+        showCopyFeedback(`已创建工作区: ${name}`);
+    }
+
+    /**
+     * 重命名工作区
+     */
+    async function renameWorkspace() {
+        const nameInput = document.getElementById('rename-workspace-name');
+        const name = nameInput.value.trim();
+        
+        if (!name) {
+            alert('请输入工作区名称！');
+            return;
+        }
+        
+        // 检查名称是否已存在（排除当前工作区）
+        if (workspaces.workspaceList.some(w => w.name === name && w.id !== workspaces.currentWorkspaceId)) {
+            alert('工作区名称已存在，请使用其他名称！');
+            return;
+        }
+        
+        // 更新工作区名称
+        const currentWorkspace = workspaces.workspaceList.find(w => w.id === workspaces.currentWorkspaceId);
+        if (currentWorkspace) {
+            currentWorkspace.name = name;
+            currentWorkspace.lastModified = new Date().toISOString();
+        }
+        
+        // 更新UI
+        renderWorkspaceSelector();
+        
+        // 保存工作区配置并关闭模态框
+        await saveWorkspaceConfig();
+        closeWorkspaceModal('workspace-rename-modal');
+        
+        // 显示成功反馈
+        showCopyFeedback(`工作区已重命名为: ${name}`);
+    }
+
+    /**
+     * 删除工作区
+     */
+    async function deleteWorkspace() {
+        const currentWorkspace = workspaces.workspaceList.find(w => w.id === workspaces.currentWorkspaceId);
+        if (!currentWorkspace) return;
+        
+        // 保存工作区名称用于反馈
+        const workspaceName = currentWorkspace.name;
+        
+        // 从工作区列表中删除
+        workspaces.workspaceList = workspaces.workspaceList.filter(w => w.id !== workspaces.currentWorkspaceId);
+        
+        // 切换到另一个工作区（选择第一个）
+        if (workspaces.workspaceList.length > 0) {
+            workspaces.currentWorkspaceId = workspaces.workspaceList[0].id;
+            await loadWorkspaceData(workspaces.currentWorkspaceId);
+        } else {
+            // 如果没有工作区了，创建一个默认的
+            createDefaultWorkspace();
+            await saveWorkspaceConfig();
+        }
+        
+        // 更新UI
+        renderWorkspaceSelector();
+        renderMainTags();
+        
+        // 保存工作区配置并关闭模态框
+        await saveWorkspaceConfig();
+        closeWorkspaceModal('workspace-delete-modal');
+        
+        // 显示成功反馈
+        showCopyFeedback(`已删除工作区: ${workspaceName}`);
+    }
+
+    /**
+     * 关闭工作区模态框
+     * @param {string} modalId - 模态框ID
+     */
+    function closeWorkspaceModal(modalId) {
+        document.getElementById(modalId).style.display = 'none';
+        enableBodyScroll();
+    }
+
+    /**
+     * 处理键盘按下事件
+     * @param {Event} e - 键盘事件对象
+     */
+    function handleKeyDown(e) {
+        // Ctrl+C 复制悬停模块的文本内容
+        if ((e.ctrlKey || e.metaKey) && e.key === 'c') {
+            // 只有在有模块被悬停时才处理复制
+            if (hoveredIndex === -1) return;
+            
+            e.preventDefault();
+            copyHoveredModule();
+            return;
+        }
+        
+        // 只有在有模块被悬停时才处理方向键
+        if (hoveredIndex === -1) return;
+        
+        const currentItem = promptData[hoveredIndex];
+        const prevItem = hoveredIndex > 0 ? promptData[hoveredIndex - 1] : null;
+        const nextItem = hoveredIndex < promptData.length - 1 ? promptData[hoveredIndex + 1] : null;
+        
+        // 获取当前模块的箭头状态
+        const arrowSymbol = calculateArrowSymbol(hoveredIndex);
+        
+        // 左箭头键处理
+        if (e.key === 'ArrowLeft') {
+            e.preventDefault();
+            
+            // 如果当前模块已经处于←状态则什么都不做
+            if (arrowSymbol === '←') {
+                return;
+            }
+            
+            // 如果当前模块处于○状态且前一个模块存在则去除前一个模块的逗号
+            if (arrowSymbol === '○' && prevItem) {
+                prevItem.isComma = false;
+            }
+            
+            // 如果当前模块处于○状态且前一个模块不存在则什么都不做
+            // 如果当前模块处于→状态则使得当前模块存在逗号
+            if (arrowSymbol === '→') {
+                currentItem.isComma = true;
+            }
+            
+            // 重新渲染并防抖保存
+            renderMainTags();
+            debouncedSaveAllData();
+        }
+        
+        // 右箭头键处理
+        if (e.key === 'ArrowRight') {
+            e.preventDefault();
+            
+            // 如果当前模块已经处于→状态则什么都不做
+            if (arrowSymbol === '→') {
+                return;
+            }
+            
+            // 如果当前模块处于○状态且下一个模块存在则去除当前模块的逗号
+            if (arrowSymbol === '○' && nextItem) {
+                currentItem.isComma = false;
+            }
+            
+            // 如果当前模块处于○状态且下一个模块不存在则什么都不做
+            // 如果当前模块处于←状态时则使得上一个模块存在逗号
+            if (arrowSymbol === '←' && prevItem) {
+                prevItem.isComma = true;
+            }
+            
+            // 重新渲染并防抖保存
+            renderMainTags();
+            debouncedSaveAllData();
+        }
+    }
+
+    /**
+     * 复制悬停模块的文本内容
+     */
+    function copyHoveredModule() {
+        if (hoveredIndex === -1) return;
+        
+        const item = promptData[hoveredIndex];
+        let textToCopy = '';
+        
+        // 根据模块类型生成对应的文本格式
+        if (item.type === 'tag') {
+            textToCopy = item.content;
+        } else if (item.type === 'weighted_tag' || item.type === 'parameter') {
+            textToCopy = item.content;
+        } else if (item.type === 'group') {
+            // 生成标签组内选项的文本（包含权重）
+            const optionsString = item.options.map(opt => {
+                const weightFloat = parseFloat(opt.weight);
+                const weightStr = (isNaN(weightFloat) || weightFloat === 1.0) ? '' : `${opt.weight}::`;
+                return `${weightStr}${opt.content}`;
+            }).join('|'); // 选项间用竖线分隔
+            const groupContent = `{${optionsString}}`; // 包裹在大括号中
+            
+            // 若标签组有外部权重，用括号和冒号添加权重
+            if (item.outerWeight !== 1.0) {
+                textToCopy = `(${groupContent}:${item.outerWeight.toFixed(2)})`;
+            } else {
+                textToCopy = groupContent;
+            }
+        }
+        
+        // 复制到剪贴板
+        copyTextToClipboard(textToCopy);
+        
+        // 显示复制成功反馈
+        showCopyFeedback(`已复制: ${textToCopy}`);
+    }
+
+    /**
+     * 复制文本到剪贴板
+     * @param {string} text - 要复制的文本
+     */
+    function copyTextToClipboard(text) {
+        // 创建一个临时的textarea元素
+        const textarea = document.createElement('textarea');
+        textarea.value = text;
+        textarea.style.position = 'fixed';
+        textarea.style.opacity = '0';
+        document.body.appendChild(textarea);
+        
+        // 选中并复制文本
+        textarea.select();
+        textarea.setSelectionRange(0, 99999); // 对于移动设备
+        
+        try {
+            document.execCommand('copy');
+        } catch (err) {
+            console.error('复制失败: ', err);
+        }
+        
+        // 清理临时元素
+        document.body.removeChild(textarea);
+    }
+
+    /**
+     * 显示复制成功反馈
+     * @param {string} message - 反馈消息
+     */
+    function showCopyFeedback(message) {
+        // 移除已存在的反馈元素
+        const existingFeedback = document.querySelector('.copy-feedback');
+        if (existingFeedback) {
+            existingFeedback.remove();
+        }
+        
+        // 创建新的反馈元素
+        const feedback = document.createElement('div');
+        feedback.className = 'copy-feedback';
+        feedback.textContent = message;
+        
+        // 添加到页面
+        document.body.appendChild(feedback);
+        
+        // 2秒后自动移除
+        setTimeout(() => {
+            if (feedback.parentNode) {
+                feedback.remove();
+            }
+        }, 2000);
+    }
+
+    /**
+     * 复制到剪贴板：复制最终提示词文本框内容
+     */
+    function copyToClipboard() {
+        const output = document.getElementById('prompt-output');
+        if (!output.value) {
+             alert('错误：请先生成提示词文本再复制！');
+             return;
+        }
+        try {
+            output.select(); // 选中文本
+            document.execCommand('copy'); // 执行复制
+            // 显示复制成功反馈
+            showCopyFeedback('已复制提示词文本到剪贴板');
+        } catch (err) {
+            console.error('复制失败: ', err);
+            alert('复制失败，请手动复制文本框中的内容。'+err.message);
+        }
+    }
+
+    /**
+     * 标签滚动调整权重：滚动鼠标滚轮调整标签/标签组的权重
+     * @param {Event} e - 滚轮事件对象
+     * @param {number} index - 标签/标签组的索引
+     */
+    function handleTagScroll(e, index) {
+        if (isDragging) return; // 拖拽时忽略滚动事件
+        
+        e.preventDefault(); // 阻止页面滚动
+        
+        const item = promptData[index];
+        // 只处理带权重的模块类型
+        if (!['weighted_tag', 'parameter', 'tag', 'group'].includes(item.type)) return;
+        
+        // 步长：按住Shift键步长0.05，否则0.1
+        const step = e.shiftKey ? 0.05 : 0.1;
+        // 滚轮方向：向上增加权重，向下减少权重
+        const delta = e.deltaY < 0 ? step : -step;
+        
+        // 处理标签组（调整外部权重）
+        if (item.type === 'group') {
+            let currentWeight = parseFloat(item.outerWeight || 1.0);
+            let newWeight = parseFloat((currentWeight + delta).toFixed(2));
+            newWeight = Math.max(0.0, newWeight); // 权重不小于0
+            item.outerWeight = newWeight;
+            renderMainTags();
+            debouncedSaveAllData();
+            return;
+        }
+        
+        // 处理普通标签/加权标签/参数标签（调整内部权重）
+        let content = item.content;
+        let currentWeight = 1.0;
+        let mainText = "";
+        let outerPrefix = ''; // 外部前缀（如 (、<）
+        let outerSuffix = ''; // 外部后缀（如 )、>）
+        
+        // 提取外部前缀和后缀（如果有）
+        if (content.startsWith('(') && content.endsWith(')')) {
+            outerPrefix = '(';
+            outerSuffix = ')';
+            content = content.slice(1, -1);
+        } else if (content.startsWith('<') && content.endsWith('>')) {
+            outerPrefix = '<';
+            outerSuffix = '>';
+            content = content.slice(1, -1);
+        }
+        
+        // 匹配权重格式：标准格式（文本:权重）或反转格式（权重:文本）
+        const standardMatch = content.match(/^(.*):(\d+(\.\d+)?)$/);
+        const reversedMatch = content.match(/^(\d+(\.\d+)?):(.*)$/);
+        
+        if (standardMatch) {
+            mainText = standardMatch[1].trim();
+            currentWeight = parseFloat(standardMatch[2]);
+        } else if (reversedMatch) {
+            currentWeight = parseFloat(reversedMatch[1]);
+            mainText = reversedMatch[3].trim();
+        } else {
+            // 无权重格式，默认权重1.0
+            currentWeight = 1.0;
+            mainText = content.trim();
+        }
+        
+        // 计算新权重（保留2位小数，不小于0）
+        let newWeight = parseFloat((currentWeight + delta).toFixed(2));
+        newWeight = Math.max(0.0, newWeight);
+        
+        // 更新标签内容和类型
+        if (['tag', 'weighted_tag', 'parameter'].includes(item.type)) {
+            let newContent;
+            if (reversedMatch) {
+                newContent = `${newWeight.toFixed(2)}:${mainText}`;
+            } else {
+                newContent = `${mainText}:${newWeight.toFixed(2)}`;
+            }
+            
+            item.content = `${outerPrefix}${newContent}${outerSuffix}`;
+            
+            // 权重为1.0时，切换为普通标签；否则为加权标签
+            if (item.type === 'tag') {
+                item.type = 'weighted_tag';
+                if (!outerPrefix && !outerSuffix) {
+                    item.content = `(${newContent})`;
+                }
+            } else if (item.type === 'weighted_tag' && newWeight === 1.0) {
+                item.type = 'tag';
+                item.content = mainText;
+            }
+        }
+        // 重新渲染标签
+        renderMainTags();
+        // 防抖保存数据
+        debouncedSaveAllData();
+    }
+
+    /**
+     * 开始编辑标签：将标签内容填入输入框，显示编辑按钮
+     * @param {number} index - 要编辑的标签索引
+     */
+    function startEditTag(index) {
+        if (isDragging) return; // 拖拽时忽略编辑事件
+        
+        const item = promptData[index];
+        if (item.type === 'group') return; // 标签组不通过此方式编辑
+        
+        editingIndex = index;
+        const mainInput = document.getElementById('main-tag-input');
+        mainInput.value = item.content; // 填入当前标签内容
+        mainInput.focus(); // 聚焦输入框
+        
+        // 滚动到输入框（如果不在视口内）
+        if (!isElementInViewport(mainInput)) {
+            scrollToElement(mainInput);
+        }
+        
+        // 切换按钮显示：隐藏添加按钮，显示编辑按钮
+        document.getElementById('tag-edit-controls').classList.remove('hidden');
+        document.getElementById('tag-add-controls').classList.add('hidden');
+    }
+
+    /**
+     * 取消编辑标签：清空输入框，恢复按钮显示
+     */
+    function cancelEdit() {
+        editingIndex = -1;
+        document.getElementById('main-tag-input').value = '';
+        // 切换按钮显示：隐藏编辑按钮，显示添加按钮
+        document.getElementById('tag-edit-controls').classList.add('hidden');
+        document.getElementById('tag-add-controls').classList.remove('hidden');
+        // 重新渲染标签（移除编辑状态高亮）
+        renderMainTags();
+    }
+
+    /**
+     * 更新标签：保存编辑后的标签内容，或删除空标签
+     */
+    async function updateTag() {
+        if (editingIndex === -1 || isDragging) return; // 拖拽时忽略更新事件
+        
+        const newContent = document.getElementById('main-tag-input').value.trim();
+        if (newContent) {
+            // 确定标签类型：参数标签（<...>）、加权标签（(...)）、普通标签
+            let newType = 'tag';
+            if (newContent.startsWith('<') && newContent.endsWith('>')) {
+                newType = 'parameter';
+            } else if (newContent.startsWith('(') && newContent.endsWith(')')) {
+                newType = 'weighted_tag';
+            }
+            // 更新标签内容和类型
+            promptData[editingIndex].content = newContent;
+            promptData[editingIndex].type = newType;
+        } else {
+             // 内容为空，执行删除
+             showDeleteConfirm(editingIndex);
+        }
+        
+        // 取消编辑状态
+        cancelEdit();
+        // 防抖保存数据
+        debouncedSaveAllData();
+    }
+
+/**
+ * 添加标签：解析输入内容，创建对应类型的标签/标签组
+ * @param {string} content - 标签内容
+ */
+function addTag(content) {
+    if (!content || isDragging) return; // 拖拽时忽略添加事件
+    
+    // 首先检查是否是带权重的标签组格式：({选项|选项}:权重) 或 (权重:{选项|选项})
+    if (content.startsWith('(') && content.endsWith(')')) {
+        const innerContent = content.slice(1, -1).trim();
+        
+        // 尝试匹配两种权重格式：内容:权重 或 权重:内容
+        const weightMatch = 
+            innerContent.match(/^(\{.*\})\s*:\s*([\d.]+)$/) || // {内容}:权重
+            innerContent.match(/^([\d.]+)\s*:\s*(\{.*\})$/) || // 权重:{内容}
+            innerContent.match(/^(.+?)\s*:\s*([\d.]+)$/) ||    // 内容:权重（通用）
+            innerContent.match(/^([\d.]+)\s*:\s*(.+)$/);       // 权重:内容（通用）
+        
+        if (weightMatch) {
+            let groupContent, outerWeight;
+            
+            // 根据匹配结果确定内容和权重
+            if (weightMatch[1].startsWith('{') && weightMatch[1].endsWith('}')) {
+                // 格式: {内容}:权重
+                groupContent = weightMatch[1].trim();
+                outerWeight = parseFloat(weightMatch[2]);
+            } else if (weightMatch[2].startsWith('{') && weightMatch[2].endsWith('}')) {
+                // 格式: 权重:{内容}
+                outerWeight = parseFloat(weightMatch[1]);
+                groupContent = weightMatch[2].trim();
+            } else if (!isNaN(parseFloat(weightMatch[1])) && weightMatch[2].startsWith('{') && weightMatch[2].endsWith('}')) {
+                // 格式: 权重:{内容}（数字在前）
+                outerWeight = parseFloat(weightMatch[1]);
+                groupContent = weightMatch[2].trim();
+            } else if (!isNaN(parseFloat(weightMatch[2])) && weightMatch[1].startsWith('{') && weightMatch[1].endsWith('}')) {
+                // 格式: {内容}:权重（数字在后）
+                groupContent = weightMatch[1].trim();
+                outerWeight = parseFloat(weightMatch[2]);
+            }
+            
+            // 如果成功提取到标签组内容，则解析为标签组
+            if (groupContent && groupContent.startsWith('{') && groupContent.endsWith('}')) {
+                const rawOptions = groupContent.slice(1, -1);
+                const options = rawOptions.split('|').map(opt => {
+                    const parts = opt.trim().split('::', 2);
+                    let optContent = '';
+                    let optWeight = '1.00';
+                    // 解析选项权重（权重::选项）
+                    if (parts.length === 2 && !isNaN(parseFloat(parts[0]))) {
+                        optWeight = parseFloat(parts[0].trim()).toFixed(2);
+                        optContent = parts[1].trim();
+                    } else {
+                        optContent = opt.trim();
+                    }
+                    return optContent.length > 0 ? { content: optContent, weight: optWeight } : null;
+                }).filter(opt => opt !== null);
+                
+                if (options.length > 0) {
+                    // 添加标签组到数据，默认 isComma 为 true
+                    promptData.push({
+                        type: 'group',
+                        name: options[0].content.substring(0, 20) + '...',
+                        options: options,
+                        outerWeight: outerWeight || 1.0, // 如果没有权重则默认为1.0
+                        id: generateId(),
+                        isComma: true
+                    });
+                    renderMainTags();
+                    // 防抖保存数据
+                    debouncedSaveAllData();
+                    return;
+                }
+            }
+        }
+    }
+    
+    // 解析直接的花括号标签组格式：{选项1|选项2|权重::选项3}
+    if (content.startsWith('{') && content.endsWith('}')) {
+        const rawOptions = content.slice(1, -1);
+        const options = rawOptions.split('|').map(opt => {
+            const parts = opt.trim().split('::', 2);
+            let optContent = '';
+            let optWeight = '1.00';
+            // 解析选项权重（权重::选项）
+            if (parts.length === 2 && !isNaN(parseFloat(parts[0]))) {
+                optWeight = parseFloat(parts[0].trim()).toFixed(2);
+                optContent = parts[1].trim();
+            } else {
+                optContent = opt.trim();
+            }
+            return optContent.length > 0 ? { content: optContent, weight: optWeight } : null;
+        }).filter(opt => opt !== null);
+        
+        if (options.length > 0) {
+            // 添加标签组到数据，默认 isComma 为 true
+            promptData.push({
+                type: 'group',
+                name: options[0].content.substring(0, 20) + '...',
+                options: options,
+                outerWeight: 1.0,
+                id: generateId(),
+                isComma: true
+            });
+            renderMainTags();
+            // 防抖保存数据
+            debouncedSaveAllData();
+            return;
+        }
+    }
+    
+    // 普通标签类型判断：参数标签、加权标签、普通标签
+    if (content.startsWith('<') && content.endsWith('>')) {
+        promptData.push({
+            type: 'parameter',
+            content: content,
+            id: generateId(),
+            isComma: true
+        });
+    } else if (content.startsWith('(') && content.endsWith(')')) {
+         promptData.push({
+            type: 'weighted_tag',
+            content: content,
+            id: generateId(),
+            isComma: true
+        });
+    } else {
+        promptData.push({
+            type: 'tag',
+            content: content,
+            isComma: true
+        });
+    }
+    // 重新渲染标签
+    renderMainTags();
+    // 防抖保存数据
+    debouncedSaveAllData();
+}
+
+    /**
+     * 添加标签组：创建空标签组，打开编辑模态框
+     */
+    function addTagGroup() {
+        if (isDragging) return; // 拖拽时忽略添加事件
+        
+        const newGroup = {
+            type: 'group',
+            name: '新标签组',
+            options: [],
+            outerWeight: 1.0,
+            id: generateId(),
+            isComma: true  // 默认有逗号
+        };
+        promptData.push(newGroup);
+        currentEditingGroupIndex = promptData.length - 1; // 设置当前编辑的标签组索引
+        openModal(newGroup); // 打开编辑模态框
+        // 防抖保存数据
+        debouncedSaveAllData();
+    }
+
+    /**
+     * 显示删除确认弹窗：确认是否删除指定模块
+     * @param {number} index - 要删除的模块索引
+     */
+    function showDeleteConfirm(index) {
+        if (isDragging) return; // 拖拽时忽略删除事件
+        
+        const item = promptData[index];
+        if (!item) return;
+        
+        currentDeleteIndex = index;
+        
+        // 获取模块名称（用于弹窗提示）
+        let name = '';
+        if (item.type === 'tag' || item.type === 'parameter' || item.type === 'weighted_tag') {
+            name = item.content.substring(0, 20) + (item.content.length > 20 ? '...' : '');
+        } else if (item.type === 'group') {
+            name = item.name;
+        }
+        
+        // 更新弹窗提示文本
+        document.getElementById('delete-confirm-message').textContent = `你确定要删除 "${name}" 这个模块吗？`;
+        document.getElementById('delete-confirm-modal').style.display = 'block';
+        
+        // 添加滚轮事件监听器，阻止事件冒泡
+        const modalContent = document.querySelector('#delete-confirm-modal .modal-content');
+        modalContent.addEventListener('wheel', function(e) {
+            e.stopPropagation();
+        }, { passive: false });
+        
+        // 添加对模态框内容区域的点击事件监听，阻止冒泡到模态框背景
+        modalContent.addEventListener('click', function(e) {
+            e.stopPropagation();
+        });
+    }
+
+    /**
+     * 确认删除：执行删除操作，重新渲染
+     */
+    function confirmDelete() {
+        if (currentDeleteIndex === -1) return;
+        
+        // 处理编辑状态（如果删除的是正在编辑的模块）
+        if (editingIndex === currentDeleteIndex) {
+            editingIndex = -1;
+            document.getElementById('main-tag-input').value = '';
+            document.getElementById('tag-edit-controls').classList.add('hidden');
+            document.getElementById('tag-add-controls').classList.remove('hidden');
+        } else if (editingIndex > currentDeleteIndex) {
+            // 编辑索引大于删除索引，编辑索引减1（避免索引错位）
+            editingIndex--;
+        }
+        
+        // 从数据中删除模块
+        promptData.splice(currentDeleteIndex, 1);
+        // 防抖保存数据
+        debouncedSaveAllData();
+        // 重新渲染标签
+        renderMainTags();
+        // 关闭弹窗，重置删除索引
+        currentDeleteIndex = -1;
+        document.getElementById('delete-confirm-modal').style.display = 'none';
+    }
+
+    /**
+     * 取消删除：关闭弹窗，重置删除索引
+     */
+    function cancelDelete() {
+        currentDeleteIndex = -1;
+        document.getElementById('delete-confirm-modal').style.display = 'none';
+        
+        // 移除事件监听器
+        const modalContent = document.querySelector('#delete-confirm-modal .modal-content');
+        if (modalContent) {
+            modalContent.removeEventListener('wheel', function(e) {
+                e.stopPropagation();
+            });
+            modalContent.removeEventListener('click', function(e) {
+                e.stopPropagation();
+            });
+        }
+    }
+
+    /**
+     * 渲染主标签容器：根据promptData动态生成标签、标签组、参数标签
+     */
+    function renderMainTags() {
+        const container = document.getElementById('main-tag-container');
+        container.innerHTML = ''; // 清空容器
+        
+        // 遍历所有模块，生成对应的DOM元素
+        promptData.forEach((item, index) => {
+            let tagClass = ''; // 标签样式类
+            let iconSvg = ''; // 标签图标SVG
+            let contentDisplay = ''; // 标签显示内容
+            
+            // 根据模块类型设置样式和内容
+            if (item.type === 'tag') {
+                tagClass = 'tag';
+                // 标签图标：标签图标
+                iconSvg = `<svg class="w-4 h-4 mr-1" fill="none" stroke="currentColor" viewBox="0 0 24 24" xmlns="http://www.w3.org/2000/svg"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M7 7h.01M7 3h5c.512 0 1.024.195 1.414.586l7 7a2 2 0 010 2.828l-7 7a2 2 0 01-2.828 0l-7-7A1.994 1.994 0 013 8V3c0-.553.447-1 1-1zm2 2a1 1 0 100 2 1 1 0 000-2z"></path></svg>`;
+                contentDisplay = item.content;
+            } else if (item.type === 'group') {
+                // 标签组样式：带外部权重时添加额外类
+                tagClass = item.outerWeight !== 1.0 
+                    ? 'tag-group-summary tag-group-with-outer-weight' 
+                    : 'tag-group-summary';
+                
+                const optionCount = item.options.length;
+                // 外部权重显示（权重≠1.0时显示）
+                const outerWeightDisplay = item.outerWeight !== 1.0 
+                    ? `<span class="outer-weight">${item.outerWeight.toFixed(2)}:</span>` 
+                    : '';
+                
+                // 标签组显示内容：权重（可选）+ 名称 + 选项数量
+                contentDisplay = `${outerWeightDisplay}<span class="mr-2">📁</span> ${item.name} <span class="ml-2 text-gray-600 font-normal">(${optionCount}个选项)</span>`;
+            } else if (item.type === 'parameter') {
+                tagClass = 'tag tag-parameter';
+                const escapedContent = escapeHtml(item.content);
+                // 参数标签图标：齿轮图标
+                iconSvg = `<svg class="w-4 h-4 mr-1" fill="none" stroke="currentColor" viewBox="0 0 24 24" xmlns="http://www.w3.org/2000/svg"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M10.325 4.317c.426-1.756 2.924-1.756 3.35 0a1.724 1.724 0 002.573 1.066c1.543-.94 3.31.826 2.37 2.37a1.724 1.724 0 001.065 2.572c1.756.426 1.756 2.924 0 3.35a1.724 1.724 0 00-1.066 2.573c.94 1.543-.826 3.31-2.37 2.37a1.724 1.724 0 00-2.572 1.065c-.426 1.756-2.924 1.756-3.35 0a1.724 1.724 0 00-2.573-1.066c-1.543.94-3.31-.826-2.37-2.37a1.724 1.724 0 00-1.065-2.572c-1.756-.426-1.756-2.924 0-3.35a1.724 1.724 0 001.066-2.573c-.94-1.543.826-3.31 2.37-2.37a1.724 1.724 0 002.572-1.065z"></path><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M15 12a3 3 0 11-6 0 3 3 0 016 0z"></path></svg>`;
+                contentDisplay = `<span class="font-mono text-sm">${escapedContent}</span>`;
+            } else if (item.type === 'weighted_tag') {
+                tagClass = 'tag tag-weighted';
+                const escapedContent = escapeHtml(item.content);
+                // 加权标签图标：权重图标
+                iconSvg = `<svg class="w-4 h-4 mr-1" fill="none" stroke="currentColor" viewBox="0 0 24 24" xmlns="http://www.w3.org/2000/svg"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M13 7h8m0 0v8m0-8l-8 8-4-4-6 6"></path></svg>`;
+                contentDisplay = `<span class="font-mono text-sm">${escapedContent}</span>`;
+            }
+            
+            // 计算箭头指示器符号
+            const arrowSymbol = calculateArrowSymbol(index);
+            
+            // 创建标签DOM元素
+            const tagElement = document.createElement('div');
+            // 添加样式类，编辑状态时添加高亮
+            tagElement.className = `${tagClass} ${editingIndex === index ? 'ring-4 ring-purple-300 transform scale-105' : ''}`;
+            
+            // 添加鼠标悬停事件
+            tagElement.addEventListener('mouseenter', () => {
+                hoveredIndex = index;
+                tagElement.classList.add('ring-2', 'ring-blue-400');
+            });
+            
+            tagElement.addEventListener('mouseleave', () => {
+                hoveredIndex = -1;
+                tagElement.classList.remove('ring-2', 'ring-blue-400');
+            });
+            
+            // 添加拖拽手柄
+            const dragHandle = `<span class="drag-handle">☰</span>`;
+            
+            // 绑定事件：标签组点击打开编辑模态框，其他标签双击进入编辑
+            if (item.type === 'group') {
+                tagElement.setAttribute('onclick', `if(!isDragging) editTagGroup(${index})`);
+                tagElement.setAttribute('onwheel', `handleTagScroll(event, ${index})`);
+                tagElement.setAttribute('onmousedown', `startDrag(${index}, event)`);
+            } else {
+                tagElement.setAttribute('ondblclick', `if(!isDragging) startEditTag(${index})`);
+                tagElement.setAttribute('onwheel', `handleTagScroll(event, ${index})`);
+                tagElement.setAttribute('onmousedown', `startDrag(${index}, event)`);
+            }
+            
+            // 设置标签内容：拖拽手柄 + 图标 + 箭头指示器 + 显示内容 + 删除按钮
+            tagElement.innerHTML = `
+                ${dragHandle}
+                ${iconSvg}
+                <span class="arrow-indicator">${arrowSymbol}</span>
+                ${contentDisplay}
+                <span class="delete-tag" onclick="event.stopPropagation(); if(!isDragging) showDeleteConfirm(${index})">&times;</span>
+            `;
+            container.appendChild(tagElement);
+        });
+    }
+
+    /**
+     * 计算箭头指示器符号
+     * @param {number} index - 当前模块的索引
+     * @returns {string} 箭头符号
+     */
+    function calculateArrowSymbol(index) {
+        const currentItem = promptData[index];
+        const prevItem = index > 0 ? promptData[index - 1] : null;
+        const nextItem = index < promptData.length - 1 ? promptData[index + 1] : null;
+        
+        const hasPrev = prevItem !== null;
+        const hasNext = nextItem !== null;
+        const prevHasComma = hasPrev && prevItem.isComma;
+        const currentHasComma = currentItem.isComma;
+        
+        // 规则1: 如果该模块的左侧的模块含有逗号且自己含有逗号则显示为○
+        if (hasPrev && prevHasComma && currentHasComma) {
+            return '○';
+        }
+        
+        // 规则2: 如果该模块的左侧的模块含有逗号且自己没有逗号且右侧没有模块则显示为○
+        if (hasPrev && prevHasComma && !currentHasComma && !hasNext) {
+            return '○';
+        }
+        
+        // 规则3: 如果该模块的左侧的没有模块且自己含有逗号则显示为○
+        if (!hasPrev && currentHasComma) {
+            return '○';
+        }
+        
+        // 规则4: 如果该模块的左侧的没有模块且右侧也没有模块则显示为○
+        if (!hasPrev && !hasNext) {
+            return '○';
+        }
+        
+        // 规则5: 如果该模块的左侧的模块含有逗号且自己没有逗号且右侧还存在模块则显示为→
+        if (hasPrev && prevHasComma && !currentHasComma && hasNext) {
+            return '→';
+        }
+        
+        // 规则6: 如果该模块的左侧没有模块且自己没有逗号且右侧还存在模块则显示为→
+        if (!hasPrev && !currentHasComma && hasNext) {
+            return '→';
+        }
+        
+        // 规则7: 如果该模块的左侧的模块没有逗号且自己含有逗号则显示为←
+        if (hasPrev && !prevHasComma && currentHasComma) {
+            return '←';
+        }
+        
+        // 规则8: 如果该模块的左侧的模块没有逗号且右侧没有模块则显示为←
+        if (hasPrev && !prevHasComma && !hasNext) {
+            return '←';
+        }
+        
+        // 规则9: 如果改模块的左右都有模块且左侧的模块没有逗号且自己没有逗号则显示为↔
+        if (hasPrev && hasNext && !prevHasComma && !currentHasComma) {
+            return '↔';
+        }
+        
+        // 默认情况
+        return '○';
+    }
+
+    /**
+     * 标签组选项滚动调整权重：滚动鼠标滚轮调整选项权重
+     * @param {Event} e - 滚轮事件对象
+     * @param {number} index - 选项索引
+     */
+    function handleGroupTagScroll(e, index) {
+        e.preventDefault();
+        e.stopPropagation(); // 阻止事件冒泡到模态框
+        
+        const group = promptData[currentEditingGroupIndex];
+        if (!group || !group.options[index]) return;
+        
+        // 获取当前操作的标签组选项
+        const option = group.options[index];
+        
+        // 根据Shift键状态设置权重调整步长：按住Shift为0.05（精细调整），否则为0.1（常规调整）
+        const step = e.shiftKey ? 0.05 : 0.1;
+        // 根据滚轮方向计算权重变化量：向上滚动增加权重，向下滚动减少权重
+        const delta = e.deltaY < 0 ? step : -step;
+        // 解析当前权重值，若解析失败默认设为1.0
+        let currentWeight = parseFloat(option.weight);
+        if (isNaN(currentWeight)) currentWeight = 1.0;
+        // 计算新权重并保留2位小数（避免浮点数精度问题）
+        let newWeight = parseFloat((currentWeight + delta).toFixed(2));
+        // 确保权重不小于0.0（最低权重限制）
+        newWeight = Math.max(0.0, newWeight);
+        // 更新选项权重（转为字符串保留2位小数）
+        option.weight = newWeight.toFixed(2);
+        
+        // 重新渲染标签组选项（更新权重显示）
+        renderGroupTags(group.options);
+        // 重新渲染主标签区（同步更新最终效果）
+        renderMainTags();
+        // 防抖保存数据
+        debouncedSaveAllData();
+    }
+
+    /**
+     * 开始编辑标签组内的选项（双击选项时触发）
+     * @param {number} index - 要编辑的选项在标签组中的索引
+     */
+    function startEditGroupTag(index) {
+        // 获取当前正在编辑的标签组
+        const group = promptData[currentEditingGroupIndex];
+        // 若标签组或目标选项不存在则退出
+        if (!group || !group.options[index]) return;
+        
+        // 记录当前正在编辑的选项索引
+        currentEditingGroupTagIndex = index;
+        // 获取目标选项数据
+        const option = group.options[index];
+        // 获取编辑输入框元素
+        const contentInput = document.getElementById('group-tag-content-input');
+        const weightInput = document.getElementById('group-tag-weight-input');
+        
+        // 将选项数据填充到输入框中
+        contentInput.value = option.content;
+        weightInput.value = option.weight;
+        // 聚焦到内容输入框，方便用户直接编辑
+        contentInput.focus();
+        
+        // 修改保存按钮状态：文字改为"更新"，样式改为紫色（表示编辑状态）
+        document.getElementById('group-tag-save-btn').textContent = '✅ 更新';
+        document.getElementById('group-tag-save-btn').classList.remove('bg-amber-500', 'hover:bg-amber-600');
+        document.getElementById('group-tag-save-btn').classList.add('bg-purple-600', 'hover:bg-purple-700');
+        // 重新渲染标签组选项（高亮当前编辑项）
+        renderGroupTags(group.options);
+    }
+
+    /**
+     * 取消标签组选项的编辑状态
+     */
+    function cancelEditGroupTag() {
+        // 重置当前编辑的选项索引（-1表示无编辑项）
+        currentEditingGroupTagIndex = -1;
+        
+        // 清空输入框并重置权重默认值
+        document.getElementById('group-tag-content-input').value = '';
+        document.getElementById('group-tag-weight-input').value = '1.0';
+        // 恢复保存按钮状态：文字改为"添加"，样式改为琥珀色（表示新增状态）
+        document.getElementById('group-tag-save-btn').textContent = '添加';
+        document.getElementById('group-tag-save-btn').classList.remove('bg-purple-600', 'hover:bg-purple-700');
+        document.getElementById('group-tag-save-btn').classList.add('bg-amber-500', 'hover:bg-amber-600');
+        // 若存在当前编辑的标签组，重新渲染其选项（移除高亮状态）
+        const group = promptData[currentEditingGroupIndex];
+        if (group) {
+            renderGroupTags(group.options);
+        }
+    }
+
+    /**
+     * 打开标签组编辑模态框
+     * @param {Object|number} groupOrIndex - 标签组对象或其在promptData中的索引
+     */
+    function openModal(groupOrIndex) {
+        // 若存在正在编辑的普通标签，先取消编辑
+        if (editingIndex !== -1) {
+            cancelEdit();
+        }
+        
+        // 取消任何正在进行的标签组选项编辑
+        cancelEditGroupTag();
+        let group;
+        // 根据参数类型获取标签组对象：若为数字则视为索引，否则直接使用对象
+        if (typeof groupOrIndex === 'number') {
+            currentEditingGroupIndex = groupOrIndex;
+            group = promptData[groupOrIndex];
+        } else {
+            group = groupOrIndex;
+        }
+        // 填充标签组名称到输入框
+        document.getElementById('group-name-input').value = group.name;
+        // 设置模态框标题
+        document.getElementById('modal-title').textContent = `编辑标签组：${group.name}`;
+        // 渲染标签组内的选项列表
+        renderGroupTags(group.options);
+        
+        // 禁用背景滚动
+        disableBodyScroll();
+        
+        // 显示模态框
+        document.getElementById('tag-group-modal').style.display = 'block';
+        
+        // 为模态框内容添加滚轮事件处理
+        const modalContent = document.querySelector('#tag-group-modal .modal-content');
+        const groupTagContainer = document.getElementById('group-tag-container');
+        
+        // 移除之前可能存在的监听器
+        modalContent.removeEventListener('wheel', handleModalWheel);
+        
+        // 添加新的滚轮事件监听器
+        modalContent.addEventListener('wheel', handleModalWheel, { passive: false });
+        
+        // 为标签组选项容器添加滚轮事件阻止（权重调整时使用）
+        groupTagContainer.addEventListener('wheel', function(e) {
+            e.stopPropagation();
+        }, { passive: false });
+    }
+
+    /**
+     * 处理模态框内的滚轮事件
+     * @param {Event} e - 滚轮事件对象
+     */
+    function handleModalWheel(e) {
+        // 如果事件目标是一个标签（用于权重调整），则不处理
+        if (e.target.closest('.tag-group-option')) {
+            return;
+        }
+        
+        // 获取标签组选项容器
+        const groupTagContainer = document.getElementById('group-tag-container');
+        if (!groupTagContainer) return;
+        
+        // 计算容器是否可以滚动
+        const canScroll = groupTagContainer.scrollHeight > groupTagContainer.clientHeight;
+        
+        // 如果容器可以滚动，则滚动容器
+        if (canScroll) {
+            e.preventDefault();
+            groupTagContainer.scrollTop += e.deltaY;
+        }
+    }
+
+    /**
+     * 编辑指定索引的标签组（调用openModal实现）
+     * @param {number} index - 标签组在promptData中的索引
+     */
+    function editTagGroup(index) {
+        openModal(index);
+    }
+
+    /**
+     * 关闭标签组编辑模态框
+     */
+    function closeModal() {
+        // 隐藏模态框
+        document.getElementById('tag-group-modal').style.display = 'none';
+        // 重置当前编辑的标签组索引
+        currentEditingGroupIndex = -1;
+        // 取消任何正在进行的标签组选项编辑
+        cancelEditGroupTag();
+        
+        // 启用背景滚动
+        enableBodyScroll();
+        
+        // 移除事件监听器
+        const modalContent = document.querySelector('#tag-group-modal .modal-content');
+        if (modalContent) {
+            modalContent.removeEventListener('wheel', handleModalWheel);
+        }
+    }
+
+    /**
+     * 保存或添加标签组选项（根据是否处于编辑状态判断）
+     */
+    function saveOrAddGroupTag() {
+        // 获取当前正在编辑的标签组
+        const group = promptData[currentEditingGroupIndex];
+        // 获取输入框元素及值
+        const contentInput = document.getElementById('group-tag-content-input');
+        const weightInput = document.getElementById('group-tag-weight-input');
+        const content = contentInput.value.trim();
+        let weight = weightInput.value.trim();
+        
+        // 若标签组不存在或内容为空则退出
+        if (!group || !content) return;
+        
+        // 处理权重值：若无效则默认设为1.0
+        if (!weight || isNaN(parseFloat(weight))) {
+            weight = '1.0';
+        }
+        
+        // 构建新选项对象（权重保留2位小数）
+        const newOption = { content: content, weight: parseFloat(weight).toFixed(2) };
+        // 若处于编辑状态则更新现有选项，否则新增选项
+        if (currentEditingGroupTagIndex !== -1) {
+            group.options[currentEditingGroupTagIndex] = newOption;
+            cancelEditGroupTag(); // 保存后取消编辑状态
+        } else {
+            group.options.push(newOption);
+            // 清空输入框并聚焦，方便连续添加
+            contentInput.value = '';
+            weightInput.value = '1.0';
+            contentInput.focus();
+        }
+        
+        // 重新渲染标签组选项和主标签区
+        renderGroupTags(group.options);
+        renderMainTags();
+        // 防抖保存数据
+        debouncedSaveAllData();
+    }
+
+    /**
+     * 删除标签组内指定索引的选项
+     * @param {number} index - 要删除的选项索引
+     */
+    function deleteGroupTag(index) {
+        // 获取当前正在编辑的标签组
+        const group = promptData[currentEditingGroupIndex];
+        if (group) {
+            // 从数组中删除该选项
+            group.options.splice(index, 1);
+            
+            // 处理编辑状态：若删除的是当前编辑项则取消编辑，若编辑项索引大于删除项则向前调整
+            if (currentEditingGroupTagIndex === index) {
+                cancelEditGroupTag();
+            } else if (currentEditingGroupTagIndex > index) {
+                currentEditingGroupTagIndex--;
+            }
+            // 重新渲染标签组选项和主标签区
+            renderGroupTags(group.options);
+            renderMainTags();
+            // 防抖保存数据
+            debouncedSaveAllData();
+        }
+    }
+
+    /**
+     * 渲染标签组内的选项列表
+     * @param {Array} options - 标签组选项数组
+     */
+    function renderGroupTags(options) {
+        // 获取容器元素并清空现有内容
+        const container = document.getElementById('group-tag-container');
+        container.innerHTML = '';
+        
+        // 如果选项为空，显示提示信息
+        if (options.length === 0) {
+            const emptyMessage = document.createElement('div');
+            emptyMessage.className = 'text-gray-500 text-sm italic text-center py-4';
+            emptyMessage.textContent = '暂无选项，请添加选项内容';
+            container.appendChild(emptyMessage);
+            return;
+        }
+        
+        // 遍历选项数组，为每个选项创建DOM元素
+        options.forEach((item, index) => {
+            // 权重显示逻辑：非1.0时显示权重值，否则不显示
+            const displayWeight = parseFloat(item.weight) !== 1.0 ? `${item.weight}::` : '';
+            const tag = document.createElement('div');
+            // 设置标签样式，当前编辑项添加特殊样式
+            tag.className = `tag tag-group-option ${currentEditingGroupTagIndex === index ? 'editing' : ''}`;
+            
+            // 添加拖拽手柄
+            const dragHandle = `<span class="group-tag-drag-handle">☰</span>`;
+            
+            // 构建标签HTML内容：包含拖拽手柄、权重（可选）、内容和删除按钮
+            tag.innerHTML = `
+                ${dragHandle}
+                <span class="font-bold text-sm text-red-700 mr-1 flex-shrink-0">${displayWeight}</span>
+                <span class="flex-grow truncate">${escapeHtml(item.content)}</span>
+                <span class="delete-tag text-red-600 flex-shrink-0" onclick="event.stopPropagation(); deleteGroupTag(${index})">&times;</span>
+            `;
+            
+            // 绑定事件
+            tag.setAttribute('onwheel', `handleGroupTagScroll(event, ${index})`);
+            tag.setAttribute('ondblclick', `startEditGroupTag(${index})`);
+            tag.setAttribute('onmousedown', `startGroupTagDrag(${index}, event)`);
+            
+            container.appendChild(tag);
+        });
+    }
+
+    /**
+     * 标签组选项拖拽开始：记录拖拽起始状态，创建占位符
+     * @param {number} index - 拖拽元素的索引
+     * @param {Event} e - 鼠标事件对象
+     */
+    function startGroupTagDrag(index, e) {
+        // 只有从拖拽手柄开始的拖拽才有效
+        const dragHandle = e.target.closest('.group-tag-drag-handle');
+        if (!dragHandle) return;
+        
+        e.preventDefault();
+        e.stopPropagation(); // 防止事件冒泡
+        
+        groupTagDragStartIndex = index;
+        const container = document.getElementById('group-tag-container');
+        groupTagDraggedItem = container.children[index];
+        
+        if (!groupTagDraggedItem) return;
+        
+        // 记录元素原始位置和尺寸
+        const rect = groupTagDraggedItem.getBoundingClientRect();
+        const handleRect = dragHandle.getBoundingClientRect();
+        
+        // 计算鼠标相对于拖拽手柄的位置（精确拖拽定位）
+        const originalX = e.clientX - handleRect.left;
+        const originalY = e.clientY - handleRect.top;
+        
+        // 创建拖拽占位符（显示拖拽位置）
+        groupTagPlaceholder = document.createElement('div');
+        groupTagPlaceholder.className = 'group-tag-drag-placeholder';
+        groupTagPlaceholder.style.width = `${rect.width}px`;
+        groupTagPlaceholder.style.height = `${rect.height}px`;
+        groupTagDraggedItem.parentNode.insertBefore(groupTagPlaceholder, groupTagDraggedItem);
+        
+        // 设置拖拽元素样式（悬浮、固定定位）
+        groupTagDraggedItem.classList.add('group-tag-dragging');
+        groupTagDraggedItem.style.width = `${rect.width}px`;
+        groupTagDraggedItem.style.height = `${rect.height}px`;
+        groupTagDraggedItem.style.left = `${e.clientX - originalX}px`;
+        groupTagDraggedItem.style.top = `${e.clientY - originalY}px`;
+        
+        // 存储相对位置，供拖拽移动时使用
+        groupTagDraggedItem.dataset.offsetX = originalX;
+        groupTagDraggedItem.dataset.offsetY = originalY;
+        
+        isGroupTagDragging = true;
+        
+        // 添加鼠标移动和释放事件监听（全局，确保拖拽过程中持续响应）
+        document.addEventListener('mousemove', handleGroupTagDragMove);
+        document.addEventListener('mouseup', endGroupTagDrag);
+    }
+
+    /**
+     * 标签组选项拖拽移动：更新拖拽元素位置，调整占位符位置
+     * @param {Event} e - 鼠标事件对象
+     */
+    function handleGroupTagDragMove(e) {
+        if (!isGroupTagDragging || !groupTagDraggedItem || !groupTagPlaceholder) return;
+        
+        // 获取拖拽元素尺寸和初始偏移量
+        const style = window.getComputedStyle(groupTagDraggedItem);
+        const width = parseInt(style.width);
+        const height = parseInt(style.height);
+        const offsetX = parseInt(groupTagDraggedItem.dataset.offsetX);
+        const offsetY = parseInt(groupTagDraggedItem.dataset.offsetY);
+        
+        // 更新拖拽元素位置（基于鼠标实时位置）
+        groupTagDraggedItem.style.left = `${e.clientX - offsetX}px`;
+        groupTagDraggedItem.style.top = `${e.clientY - offsetY}px`;
+        
+        // 找到所有标签组选项元素（排除拖拽元素和占位符）
+        const container = document.getElementById('group-tag-container');
+        const items = Array.from(container.children).filter(child => 
+            child !== groupTagDraggedItem && child !== groupTagPlaceholder
+        );
+        
+        // 获取容器位置和鼠标在容器内的相对坐标
+        const containerRect = container.getBoundingClientRect();
+        const mouseY = e.clientY - containerRect.top;  // 鼠标在容器内的Y坐标
+        
+        // 确定占位符插入位置
+        let insertBefore = null;
+        
+        // 遍历所有选项，找到鼠标位置对应的插入点
+        for (let i = 0; i < items.length; i++) {
+            const item = items[i];
+            const itemRect = item.getBoundingClientRect();
+            const itemTop = itemRect.top - containerRect.top;
+            
+            // 如果鼠标在选项的上半部分，则插入到该选项前
+            if (mouseY < itemTop + itemRect.height / 2) {
+                insertBefore = item;
+                break;
+            }
+        }
+        
+        // 如果鼠标在所有选项下方，插入到最后
+        if (insertBefore === null && items.length > 0) {
+            insertBefore = items[items.length - 1].nextSibling;
+        }
+        
+        // 执行插入占位符
+        if (insertBefore) {
+            container.insertBefore(groupTagPlaceholder, insertBefore);
+        } else {
+            container.appendChild(groupTagPlaceholder);
+        }
+        
+        // 自动滚动容器（如果拖拽到边界）
+        const scrollThreshold = 30; // 距离边界的阈值
+        const scrollSpeed = 5; // 滚动速度
+        
+        if (mouseY < containerRect.top + scrollThreshold) {
+            // 向上滚动
+            container.scrollTop -= scrollSpeed;
+        } else if (mouseY > containerRect.bottom - scrollThreshold) {
+            // 向下滚动
+            container.scrollTop += scrollSpeed;
+        }
+    }
+
+    /**
+     * 标签组选项拖拽结束：更新数据顺序，清理拖拽状态，重新渲染
+     */
+    function endGroupTagDrag() {
+        if (!isGroupTagDragging || !groupTagDraggedItem || !groupTagPlaceholder) return;
+        
+        // 移除全局事件监听
+        document.removeEventListener('mousemove', handleGroupTagDragMove);
+        document.removeEventListener('mouseup', endGroupTagDrag);
+        
+        // 计算新位置（占位符的索引）
+        const container = document.getElementById('group-tag-container');
+        const children = Array.from(container.children);
+        const newIndex = children.indexOf(groupTagPlaceholder);
+        
+        // 更新数据顺序（如果位置发生变化）
+        if (newIndex !== -1 && newIndex !== groupTagDragStartIndex) {
+            const group = promptData[currentEditingGroupIndex];
+            if (group && group.options) {
+                const [movedOption] = group.options.splice(groupTagDragStartIndex, 1);
+                group.options.splice(newIndex, 0, movedOption);
+                
+                // 防抖保存数据
+                debouncedSaveAllData();
+            }
+        }
+        
+        // 清理拖拽样式和元素
+        groupTagDraggedItem.classList.remove('group-tag-dragging');
+        groupTagDraggedItem.removeAttribute('style');
+        groupTagPlaceholder.remove();
+        
+        // 重新渲染标签组选项（更新顺序）
+        const group = promptData[currentEditingGroupIndex];
+        if (group) {
+            renderGroupTags(group.options);
+        }
+        
+        // 重置拖拽变量
+        groupTagDraggedItem = null;
+        groupTagPlaceholder = null;
+        groupTagDragStartIndex = -1;
+        isGroupTagDragging = false;
+    }
+
+    /**
+     * 保存标签组的修改（主要是名称）
+     */
+    async function saveTagGroup() {
+        // 若没有正在编辑的标签组则退出
+        if (currentEditingGroupIndex === -1) return;
+        // 获取当前编辑的标签组
+        const group = promptData[currentEditingGroupIndex];
+        // 更新标签组名称（为空时使用默认值）
+        group.name = document.getElementById('group-name-input').value.trim() || '未命名标签组';
+        // 重新渲染主标签区（更新标签组名称显示）
+        renderMainTags();
+        // 防抖保存数据
+        debouncedSaveAllData();
+        // 关闭模态框
+        closeModal();
+    }
+
+    /**
+     * 根据当前编辑的标签/标签组数据生成最终的提示词文本
+     */
+    function generatePromptText() {
+        if (isDragging) return; // 拖拽过程中忽略生成事件
+        
+        // 遍历所有标签数据，生成对应的文本片段
+        const textParts = promptData.map((item, index) => {
+            let text = '';
+            
+            if (item.type === 'tag') {
+                text = item.content;
+            } else if (item.type === 'weighted_tag' || item.type === 'parameter') {
+                text = item.content;
+            } else if (item.type === 'group') {
+                // 生成标签组内选项的文本（包含权重）
+                const optionsString = item.options.map(opt => {
+                    const weightFloat = parseFloat(opt.weight);
+                    const weightStr = (isNaN(weightFloat) || weightFloat === 1.0) ? '' : `${opt.weight}::`;
+                    return `${weightStr}${opt.content}`;
+                }).join('|'); // 选项间用竖线分隔
+                const groupContent = `{${optionsString}}`; // 包裹在大括号中
+                
+                // 若标签组有外部权重，用括号和冒号添加权重
+                if (item.outerWeight !== 1.0) {
+                    text = `(${groupContent}:${item.outerWeight.toFixed(2)})`;
+                } else {
+                    text = groupContent;
+                }
+            }
+            
+            // 如果不是最后一个模块且 isComma 为 true，则添加英文逗号
+            if (index < promptData.length - 1 && item.isComma) {
+                text += ',';
+            }
+            
+            return text;
+        }).filter(part => part.length > 0); // 过滤空片段
+        
+        // 拼接所有片段并清理多余的逗号和空格
+        const generatedText = textParts.join(' ');
+        const finalCleanedText = generatedText
+            .replace(/,(\s*,)+/g, ',') // 替换连续逗号
+            .replace(/\s*,\s*$/g, '') // 移除末尾逗号
+            .replace(/^\s*,\s*/g, '') // 移除开头逗号
+            .replace(/\s+/g, ' ') // 合并多个空格为单个空格
+            .trim();
+        
+        // 将结果显示到输出框
+        document.getElementById('prompt-output').value = finalCleanedText;
+        
+        // 输出框边框闪烁绿色提示（表示生成成功）
+        const outputField = document.getElementById('prompt-output');
+        if (outputField.value) {
+            outputField.style.borderColor = '#10b981';
+            setTimeout(() => { outputField.style.borderColor = '#d1d5db'; }, 1000);
+        }
+    }
+
+/**
+ * 解析输入的提示词文本为标签/标签组数据结构
+ */
+function parsePromptText() {
+    if (isDragging) return; // 拖拽过程中忽略解析事件
+    
+    const inputText = document.getElementById('prompt-input').value.trim();
+    if (!inputText) {
+        alert('请输入待解析的提示词文本。');
+        return;
+    }
+    
+    // 先验证括号是否闭合
+    const bracketValidation = validateBrackets(inputText);
+    if (!bracketValidation.valid) {
+        showBracketError(bracketValidation);
+        return;
+    }
+    
+    // 括号验证通过，清除错误提示
+    clearBracketErrors();
+    
+    // 取消任何正在进行的编辑
+    cancelEdit();
+    // 重置标签数据
+    promptData.length = 0;
+    
+    // 按括号分割文本为多个部分
+    const parts = splitWithParentheses(inputText);
+    
+    // 使用累积位置来准确跟踪每个部分的位置
+    let currentPosition = 0;
+    
+    // 处理每个分割后的部分
+    parts.forEach((part, index) => {
+        const trimmedPart = part.trim();
+        if (!trimmedPart) return;
+        
+        // 在剩余文本中找到当前部分的确切位置
+        const remainingText = inputText.substring(currentPosition);
+        const partStartInRemaining = remainingText.indexOf(trimmedPart);
+        
+        if (partStartInRemaining === -1) {
+            // 如果找不到，回退到原来的方法
+            currentPosition += part.length;
+            return;
+        }
+        
+        // 计算在原始文本中的准确位置
+        const partStart = currentPosition + partStartInRemaining;
+        const partEnd = partStart + trimmedPart.length;
+        
+        // 判断这个部分后面是否有逗号（不是最后一个部分且后面跟着逗号）
+        let hasComma = false;
+        if (index < parts.length - 1) {
+            const afterPartText = inputText.substring(partEnd).trim();
+            // 检查剩余文本是否以逗号开头（支持英文逗号和中文逗号）
+            hasComma = afterPartText.startsWith(',') || afterPartText.startsWith('，');
+        }
+        
+        // 更新当前位置
+        currentPosition = partEnd;
+        if (hasComma) {
+            // 如果有逗号，跳过逗号的位置
+            currentPosition += 1;
+        }
+        
+        // 首先检查是否是带权重的标签组格式
+        if (trimmedPart.startsWith('(') && trimmedPart.endsWith(')')) {
+            const innerContent = trimmedPart.slice(1, -1).trim();
+            
+            // 尝试匹配两种权重格式：内容:权重 或 权重:内容
+            const weightMatch = 
+                innerContent.match(/^(\{.*\})\s*:\s*([\d.]+)$/) || // {内容}:权重
+                innerContent.match(/^([\d.]+)\s*:\s*(\{.*\})$/) || // 权重:{内容}
+                innerContent.match(/^(.+?)\s*:\s*([\d.]+)$/) ||    // 内容:权重（通用）
+                innerContent.match(/^([\d.]+)\s*:\s*(.+)$/);       // 权重:内容（通用）
+            
+            if (weightMatch) {
+                let groupContent, outerWeight;
+                
+                // 根据匹配结果确定内容和权重
+                if (weightMatch[1].startsWith('{') && weightMatch[1].endsWith('}')) {
+                    // 格式: {内容}:权重
+                    groupContent = weightMatch[1].trim();
+                    outerWeight = parseFloat(weightMatch[2]);
+                } else if (weightMatch[2].startsWith('{') && weightMatch[2].endsWith('}')) {
+                    // 格式: 权重:{内容}
+                    outerWeight = parseFloat(weightMatch[1]);
+                    groupContent = weightMatch[2].trim();
+                } else if (!isNaN(parseFloat(weightMatch[1])) && weightMatch[2].startsWith('{') && weightMatch[2].endsWith('}')) {
+                    // 格式: 权重:{内容}（数字在前）
+                    outerWeight = parseFloat(weightMatch[1]);
+                    groupContent = weightMatch[2].trim();
+                } else if (!isNaN(parseFloat(weightMatch[2])) && weightMatch[1].startsWith('{') && weightMatch[1].endsWith('}')) {
+                    // 格式: {内容}:权重（数字在后）
+                    groupContent = weightMatch[1].trim();
+                    outerWeight = parseFloat(weightMatch[2]);
+                }
+                
+                // 如果成功提取到标签组内容，则解析为标签组
+                if (groupContent && groupContent.startsWith('{') && groupContent.endsWith('}')) {
+                    const rawOptions = groupContent.slice(1, -1);
+                    const options = rawOptions.split('|').map(opt => {
+                        const parts = opt.trim().split('::', 2);
+                        let content = '';
+                        let weight = '1.00';
+                        // 若包含有效权重则提取，否则默认1.00
+                        if (parts.length === 2 && !isNaN(parseFloat(parts[0]))) {
+                            weight = parseFloat(parts[0].trim()).toFixed(2);
+                            content = parts[1].trim();
+                        } else {
+                            content = opt.trim();
+                        }
+                        return content.length > 0 ? { content, weight } : null;
+                    }).filter(opt => opt !== null);
+                    
+                    // 添加标签组数据，包含 isComma 信息
+                    promptData.push({
+                        type: 'group',
+                        name: options.length > 0 ? options[0].content.substring(0, 20) + '...' : '解析的标签组',
+                        options: options,
+                        outerWeight: outerWeight || 1.0,
+                        id: generateId(),
+                        isComma: hasComma
+                    });
+                    return;
+                }
+            }
+        }
+        
+        // 处理普通标签组（仅大括号包裹，无外部权重）
+        if (trimmedPart.startsWith('{') && trimmedPart.endsWith('}')) {
+            const rawOptions = trimmedPart.slice(1, -1);
+            // 解析组内选项（逻辑同上）
+            const options = rawOptions.split('|').map(opt => {
+                const parts = opt.trim().split('::', 2);
+                let content = '';
+                let weight = '1.00';
+                if (parts.length === 2 && !isNaN(parseFloat(parts[0]))) {
+                    weight = parseFloat(parts[0].trim()).toFixed(2);
+                    content = parts[1].trim();
+                } else {
+                    content = opt.trim();
+                }
+                return content.length > 0 ? { content, weight } : null;
+            }).filter(opt => opt !== null);
+            
+            // 添加标签组数据（外部权重默认为1.0），包含 isComma 信息
+            promptData.push({
+                type: 'group',
+                name: options.length > 0 ? options[0].content.substring(0, 20) + '...' : '解析的标签组',
+                options: options,
+                outerWeight: 1.0,
+                id: generateId(),
+                isComma: hasComma
+            });
+        } 
+        // 处理参数标签（尖括号包裹）
+        else if (trimmedPart.startsWith('<') && trimmedPart.endsWith('>')) {
+            promptData.push({
+                type: 'parameter',
+                content: trimmedPart,
+                id: generateId(),
+                isComma: hasComma
+            });
+        } 
+        // 处理带权重的单个标签（括号包裹，非标签组）
+        else if (trimmedPart.startsWith('(') && trimmedPart.endsWith(')')) {
+            promptData.push({
+                type: 'weighted_tag',
+                content: trimmedPart,
+                id: generateId(),
+                isComma: hasComma
+            });
+        } 
+        // 普通标签（无特殊格式）
+        else {
+            promptData.push({
+                type: 'tag',
+                content: trimmedPart,
+                isComma: hasComma
+            });
+        }
+    });
+    
+    // 重新渲染主标签区并清空输入框
+    renderMainTags();
+    // 防抖保存数据
+    debouncedSaveAllData();
+    // 清空输入框内容
+    document.getElementById('prompt-input').value = '';
+}
+
+    /**
+     * 保存所有数据到服务器（兼容性函数）
+     */
+    function saveAllData() {
+        debouncedSaveAllData();
+    }
+
+    /**
+     * 禁用背景滚动
+     */
+    function disableBodyScroll() {
+        document.body.classList.add('modal-open');
+        document.body.style.paddingRight = window.innerWidth - document.documentElement.clientWidth + 'px'; // 防止滚动条消失导致的布局偏移
+    }
+
+    /**
+     * 启用背景滚动
+     */
+    function enableBodyScroll() {
+        document.body.classList.remove('modal-open');
+        document.body.style.paddingRight = '';
+    }
+</script>
+</body>
+</html>

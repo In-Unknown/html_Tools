@@ -1,0 +1,2714 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>智能活动日程表</title>
+    <style>
+        /* 基础样式 - 极简亮色模式 */
+        body {
+            font-family: 'Inter', 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+            margin: 20px;
+            padding: 0;
+            background-color: #f8f8f8;
+            color: #333333;
+            transition: background-color 0.3s;
+        }
+
+        h2 {
+            color: #1a73e8;
+            text-align: center;
+            margin-bottom: 15px;
+            font-weight: 500;
+        }
+
+        /* 实时时间显示 */
+        #current-time {
+            color: #1a73e8;
+            font-size: 1.2em;
+        }
+
+        /* 表格容器与基础样式 */
+        .schedule-container {
+            width: 70%;
+            margin: 20px auto;
+            border-radius: 12px;
+            overflow-x: auto;
+            overflow-y: hidden;
+            box-shadow: 0 6px 15px rgba(0, 0, 0, 0.08);
+            border: 1px solid #e5e5e5;
+            position: relative;
+        }
+
+        /* 滚动条样式优化 */
+        .schedule-container::-webkit-scrollbar {
+            height: 8px;
+        }
+
+        .schedule-container::-webkit-scrollbar-track {
+            background: #f1f1f1;
+            border-radius: 4px;
+        }
+
+        .schedule-container::-webkit-scrollbar-thumb {
+            background: #c1c1c1;
+            border-radius: 4px;
+        }
+
+        .schedule-container::-webkit-scrollbar-thumb:hover {
+            background: #a8a8a8;
+        }
+
+        /* 表格设置最小宽度，确保内容不换行 */
+        table {
+            min-width: 1300px;
+            width: 100%;
+            border-collapse: separate;
+            border-spacing: 0;
+        }
+
+        th, td {
+            padding: 16px 12px;
+            text-align: left;
+            border-bottom: 1px solid rgba(0, 0, 0, 0.08);
+            position: relative;
+            vertical-align: top;
+            white-space: nowrap;
+        }
+
+        th {
+            background-color: #e8e8e8;
+            color: #333333;
+            font-weight: 600;
+            position: sticky;
+            top: 0;
+            z-index: 100;
+        }
+        
+        tbody tr:last-child td {
+            border-bottom: none;
+        }
+
+        /* 行背景统一为白色 */
+        .task-row {
+            background-color: #ffffff;
+        }
+        
+        /* 空档期特殊样式 */
+        .gap-row {
+            background-color: #f0f8ff !important;
+            height: 10px;
+            transition: all 0.3s;
+        }
+
+        .gap-row td {
+            padding: 4px 10px;
+            border-bottom: 1px dashed #dddddd !important;
+            vertical-align: middle;
+        }
+
+        .gap-row td .content {
+            font-size: 0.8em;
+            color: #999999;
+            font-weight: 400;
+        }
+
+        .gap-row .time-label {
+            display: none;
+        }
+        
+        .current-task.gap-row {
+            transform: none;
+            box-shadow: none;
+            border: none;
+        }
+        
+        .gap-row .option-cell,
+        .gap-row .action-cell {
+            padding: 4px 20px;
+        }
+
+        /* 时间段文本美化 */
+        .time-label {
+            display: inline-block;
+            background-color: rgba(26, 115, 232, 0.1);
+            color: #1a73e8;
+            padding: 4px 8px;
+            border-radius: 6px;
+            font-weight: 600;
+            font-size: 0.95em;
+            position: relative;
+            z-index: 3;
+        }
+
+        /* 全行 Canvas 进度条样式 */
+        .progress-canvas {
+            position: absolute;
+            top: 0;
+            left: 0;
+            height: 100%;
+            width: 100%;
+            z-index: 1;
+            pointer-events: none;
+        }
+
+        /* 文本内容样式 */
+        td .content {
+            position: relative;
+            z-index: 2;
+        }
+
+        /* 当前时间块突出样式 */
+        .current-task {
+            position: relative;
+            z-index: 1000;
+            box-shadow: 0 5px 12px rgba(0, 0, 0, 0.185);
+            transition: all 0.3s ease;
+            border-radius: 6px;
+            overflow: hidden;
+        }
+
+        .current-task td {
+            border-bottom: 1px solid #cccccc !important;
+        }
+
+        .bold { font-weight: bold; }
+
+        /* ====== 标签列样式 ====== */
+        .option-cell {
+            padding: 10px 12px;
+            min-width: 180px;
+            position: static;
+        }
+        
+        /* 标签显示样式 */
+        .tags-display {
+            display: flex;
+            flex-wrap: wrap;
+            gap: 4px;
+            cursor: pointer;
+            min-height: 32px;
+            align-items: center;
+            padding: 2px 0;
+        }
+        
+        .tag-item {
+            display: inline-flex;
+            align-items: center;
+            background-color: #e8f0fe;
+            color: #1a73e8;
+            padding: 4px 8px;
+            border-radius: 12px;
+            font-size: 0.85em;
+            max-width: 100%;
+            transition: all 0.2s;
+        }
+        
+        .tag-item:hover {
+            background-color: #dbe8fd;
+        }
+        
+        .empty-tag-placeholder {
+            color: #aaaaaa;
+            font-style: italic;
+            font-size: 0.9em;
+        }
+        
+        /* 标签输入框 */
+        .tags-input {
+            width: 100%;
+            border: none;
+            outline: none;
+            font-size: 1em;
+            background-color: transparent;
+            box-sizing: border-box;
+            font-family: inherit;
+            padding: 0;
+            margin: 0;
+        }
+        
+        .tags-input-field {
+            width: 100%;
+            padding: 5px 0;
+            border: none;
+            border-bottom: 1px solid #ccc;
+            font-size: 1em;
+            outline: none;
+            box-sizing: border-box;
+            background-color: transparent;
+            transition: border-bottom-color 0.2s;
+            position: relative;
+            z-index: 3;
+        }
+        
+        .tags-input-field:focus {
+            border-bottom-color: #1a73e8;
+        }
+        
+        .tags-input-field::placeholder {
+            color: #aaaaaa;
+            opacity: 1;
+        }
+
+        /* 时长编辑输入框 */
+        .duration-input {
+            width: 70px;
+            padding: 6px 8px;
+            border: 2px solid #1a73e8;
+            border-radius: 4px;
+            font-size: 1em;
+            text-align: center;
+            outline: none;
+            background-color: white;
+            box-shadow: 0 2px 4px rgba(0,0,0,0.1);
+            font-family: inherit;
+            transition: all 0.2s ease;
+        }
+
+        .duration-input:focus {
+            border-color: #0d62d9;
+            box-shadow: 0 0 0 3px rgba(26, 115, 232, 0.1);
+        }
+
+        /* 任务名称编辑输入框 */
+        .task-name-input {
+            width: 100%;
+            padding: 6px 8px;
+            border: 2px solid #1a73e8;
+            border-radius: 4px;
+            font-size: 1em;
+            outline: none;
+            background-color: white;
+            box-shadow: 0 2px 4px rgba(0,0,0,0.1);
+            font-weight: bold;
+            font-family: inherit;
+            transition: all 0.2s ease;
+        }
+
+        .task-name-input:focus {
+            border-color: #0d62d9;
+            box-shadow: 0 0 0 3px rgba(26, 115, 232, 0.1);
+        }
+
+        /* 整体开始时间输入框 */
+        .start-time-input {
+            width: 110px;
+            padding: 3px 0;
+            border: 1px solid #cccccc;
+            border-radius: 4px;
+            font-size: 1em;
+            outline: none;
+            background-color: white;
+            font-weight: 400;
+            text-align: center;
+            font-family: inherit;
+            cursor: pointer;
+            transition: all 0.2s ease;
+            -webkit-appearance: none;
+            -moz-appearance: textfield;
+            appearance: none;
+        }
+
+        .start-time-input:hover {
+            border-color: #1a73e8;
+        }
+
+        .start-time-input:focus {
+            border-color: #1a73e8;
+            box-shadow: 0 0 0 3px rgba(26, 115, 232, 0.1);
+        }
+
+        .start-time-input::-webkit-inner-spin-button,
+        .start-time-input::-webkit-outer-spin-button {
+            -webkit-appearance: none;
+            margin: 0;
+        }
+
+        .start-time-input::-webkit-calendar-picker-indicator {
+            color: #1a73e8;
+            opacity: 0.8;
+            cursor: pointer;
+            padding: 2px;
+            background-size: 16px;
+            background-position: center;
+        }
+
+        .start-time-input::-webkit-calendar-picker-indicator:hover {
+            opacity: 1;
+            background-color: rgba(26, 115, 232, 0.1);
+            border-radius: 3px;
+        }
+
+        /* Firefox 中的时间输入框样式 */
+        .start-time-input::-moz-focus-inner {
+            border: 0;
+        }
+
+        /* 编辑按钮样式 */
+        .duration-editable, .task-name-editable {
+            cursor: pointer;
+            transition: background-color 0.2s;
+            border-radius: 4px;
+            padding: 2px 4px;
+        }
+
+        .duration-editable:hover, .task-name-editable:hover {
+            background-color: rgba(26, 115, 232, 0.1);
+        }
+
+        /* 全局浮动下拉列表容器 */
+        #floating-dropdown-container {
+            position: fixed;
+            z-index: 5000;
+            background-color: #fff;
+            box-shadow: 0 4px 12px rgba(0, 0, 0, 0.15);
+            border-radius: 6px;
+            display: none;
+            overflow: hidden;
+        }
+
+        .option-dropdown-list {
+            list-style: none;
+            padding: 0;
+            margin: 0;
+            max-height: 200px;
+            overflow-y: auto;
+        }
+
+        .option-dropdown-list li {
+            padding: 8px 12px;
+            cursor: pointer;
+            text-align: left;
+            font-size: 0.95em;
+            white-space: nowrap;
+        }
+
+        .option-dropdown-list li:hover {
+            background-color: #f0f0f0;
+            color: #1a73e8;
+        }
+        
+        /* ====== 进度条样式 ====== */
+
+        .progress-footer {
+            max-width: 70%;
+            margin: 30px auto 10px auto;
+            padding: 20px;
+            background-color: #ffffff;
+            border-radius: 12px;
+            box-shadow: 0 4px 10px rgba(0, 0, 0, 0.05);
+            border: 1px solid #e5e5e5;
+            text-align: center;
+        }
+
+        .footer-title {
+            color: #333;
+            font-size: 1.1em;
+            margin-bottom: 15px;
+            font-weight: 600;
+            margin-top: 0 !important; /* 关键：移除上边距 */
+        }
+
+        .progress-bar-container {
+            display: flex;
+            align-items: center;
+            background-color: #e0e0e0;
+            border-radius: 8px;
+            height: 30px;
+            overflow: hidden;
+            position: relative;
+            --container-width: 100%;
+        }
+
+        .digital-progress-bar {
+            height: 100%;
+            width: 0%;
+            transition: width 0.2s linear;
+            border-radius: 8px 0 0 8px;
+
+            background: linear-gradient(
+                90deg,
+                #1a73e8 0%,
+                #FF4136 50%,
+                #FFCC00 100%
+            );
+            
+            background-size: var(--container-width) 100%;
+            background-position: 0 0;
+        }
+
+        /* 统一的百分比标签样式 */
+        .percentage-label {
+            position: absolute;
+            font-weight: bold;
+            height: 100%;
+            display: flex;
+            align-items: center;
+            top: 0;
+            right: 0;
+            z-index: 11;
+            transition: color 0.2s;
+            white-space: nowrap;
+            padding: 0 10px;
+            color: #333333;
+        }
+        
+        /* 错误提示 */
+        .error-message {
+            color: #d32f2f;
+            background-color: #ffebee;
+            padding: 10px;
+            border-radius: 4px;
+            margin: 10px auto;
+            max-width: 100%;
+            text-align: center;
+            display: none;
+            width: 70%;
+        }
+        
+        /* 添加按钮行 */
+        .add-task-row {
+            background-color: #f8f9fa;
+            cursor: pointer;
+            transition: background-color 0.2s;
+            height: 40px;
+        }
+        
+        .add-task-row:hover {
+            background-color: #e8f0fe;
+        }
+        
+        .add-task-cell {
+            text-align: center;
+            padding: 8px !important;
+            border-top: 2px dashed #ddd;
+        }
+        
+        .add-button {
+            color: #1a73e8;
+            font-weight: 600;
+            display: inline-flex;
+            align-items: center;
+            justify-content: center;
+            gap: 8px;
+            padding: 6px 12px;
+            border-radius: 6px;
+            transition: all 0.2s;
+            font-size: 0.95em;
+        }
+        
+        .add-button:hover {
+            background-color: rgba(26, 115, 232, 0.1);
+        }
+        
+        .add-button::before {
+            content: "+";
+            font-size: 1.1em;
+            font-weight: bold;
+        }
+        
+        /* 整体开始时间控制行 */
+        .control-row {
+            background-color: #f0f7ff;
+            border-bottom: 2px solid #ddd;
+        }
+        
+        .control-cell {
+            padding: 12px 20px !important;
+            font-weight: 600;
+            color: #333;
+        }
+        
+        .control-label {
+            display: flex;
+            align-items: center;
+            gap: 8px;
+        }
+        
+        .control-label-text {
+            white-space: nowrap;
+            font-weight: 500;
+        }
+        
+        /* 移除保存按钮样式 */
+        
+        /* ====== 操作列样式 ====== */
+        .action-cell {
+            padding: 10px 8px;
+            min-width: 90px;
+            text-align: center;
+            position: static;
+        }
+        
+        .action-buttons {
+            display: flex;
+            gap: 4px;
+            align-items: center;
+        }
+        
+        .action-btn {
+            width: 28px;
+            height: 28px;
+            border: none;
+            border-radius: 4px;
+            background-color: #f0f0f0;
+            color: #666;
+            cursor: pointer;
+            font-size: 0.9em;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            transition: all 0.2s;
+        }
+        
+        .action-btn:hover {
+            background-color: #e0e0e0;
+            color: #333;
+        }
+        
+        .delete-btn {
+            background-color: #ffebee;
+            color: #d32f2f;
+        }
+        
+        .delete-btn:hover {
+            background-color: #ffcdd2;
+            color: #b71c1c;
+        }
+        
+        .move-up-btn:hover {
+            background-color: #e8f0fe;
+            color: #1a73e8;
+        }
+        
+        .move-down-btn:hover {
+            background-color: #e8f0fe;
+            color: #1a73e8;
+        }
+        
+        .action-btn:disabled {
+            opacity: 0.3;
+            cursor: not-allowed;
+        }
+        
+        .action-btn:disabled:hover {
+            background-color: #f0f0f0;
+            color: #666;
+        }
+        
+        /* 确认对话框样式 */
+        .confirm-dialog {
+            position: fixed;
+            top: 0;
+            left: 0;
+            width: 100%;
+            height: 100%;
+            background-color: rgba(0, 0, 0, 0.5);
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            z-index: 10000;
+        }
+        
+        .confirm-content {
+            background-color: white;
+            padding: 24px;
+            border-radius: 8px;
+            box-shadow: 0 4px 20px rgba(0, 0, 0, 0.15);
+            max-width: 400px;
+            width: 90%;
+        }
+        
+        .confirm-title {
+            font-size: 1.2em;
+            font-weight: 600;
+            margin-bottom: 12px;
+            color: #333;
+        }
+        
+        .confirm-message {
+            margin-bottom: 20px;
+            color: #666;
+            line-height: 1.5;
+        }
+        
+        .confirm-buttons {
+            display: flex;
+            justify-content: flex-end;
+            gap: 10px;
+        }
+        
+        .confirm-btn {
+            padding: 8px 16px;
+            border: none;
+            border-radius: 4px;
+            cursor: pointer;
+            font-weight: 500;
+            transition: background-color 0.2s;
+        }
+        
+        .confirm-cancel {
+            background-color: #f0f0f0;
+            color: #666;
+        }
+        
+        .confirm-cancel:hover {
+            background-color: #e0e0e0;
+        }
+        
+        .confirm-delete {
+            background-color: #d32f2f;
+            color: white;
+        }
+        
+        .confirm-delete:hover {
+            background-color: #b71c1c;
+        }
+
+        /* ====== 新增样式：执行状态按钮 ====== */
+        .status-cell {
+            padding: 10px 8px;
+            min-width: 100px;
+            position: static;
+        }
+        
+        .status-btn {
+            padding: 8px 12px;
+            border: none;
+            border-radius: 6px;
+            cursor: pointer;
+            font-weight: 500;
+            font-size: 0.9em;
+            transition: all 0.2s;
+            font-family: inherit;
+            width: 80px;
+            text-align: center;
+        }
+        
+        .status-btn-start {
+            background-color: #1a73e8;
+            color: white;
+        }
+        
+        .status-btn-start:hover {
+            background-color: #0d62d9;
+        }
+        
+        .status-btn-complete {
+            background-color: #34a853;
+            color: white;
+        }
+        
+        .status-btn-complete:hover {
+            background-color: #2e9447;
+        }
+        
+        .status-btn-completed {
+            background-color: #e8e8e8;
+            color: #666;
+            cursor: not-allowed;
+        }
+        
+        .status-btn-notstarted {
+            background-color: #f0f0f0;
+            color: #999;
+            cursor: not-allowed;
+        }
+        
+        /* 当前时间块的按钮有特殊样式 */
+        .current-task .status-btn-start {
+            box-shadow: 0 0 0 2px rgba(26, 115, 232, 0.3);
+        }
+        
+        .current-task .status-btn-complete {
+            box-shadow: 0 0 0 2px rgba(52, 168, 83, 0.3);
+        }
+        
+        .status-text {
+            font-size: 0.9em;
+            font-weight: 500;
+            padding: 6px 10px;
+            border-radius: 4px;
+            display: inline-block;
+        }
+        
+        .status-text.completed {
+            color: #34a853;
+            background-color: rgba(52, 168, 83, 0.1);
+        }
+        
+        .status-text.not-started {
+            color: #999;
+            background-color: #f5f5f5;
+        }
+        
+        /* ====== 详细描述按钮样式 ====== */
+        .desc-cell {
+            padding: 10px 8px;
+            min-width: 100px;
+            position: static;
+        }
+        
+        .desc-btn {
+            padding: 8px 12px;
+            border: none;
+            border-radius: 6px;
+            cursor: pointer;
+            font-weight: 500;
+            font-size: 0.9em;
+            transition: all 0.2s;
+            background-color: #f0f0f0;
+            color: #666;
+            font-family: inherit;
+            width: 80px;
+        }
+        
+        .desc-btn:hover {
+            background-color: #e0e0e0;
+            color: #333;
+        }
+        
+        /* ====== 详细描述对话框样式 ====== */
+        .desc-dialog {
+            position: fixed;
+            top: 0;
+            left: 0;
+            width: 100%;
+            height: 100%;
+            background-color: rgba(0, 0, 0, 0.5);
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            z-index: 10001;
+        }
+        
+        .desc-content {
+            background-color: white;
+            padding: 24px;
+            border-radius: 8px;
+            box-shadow: 0 4px 20px rgba(0, 0, 0, 0.15);
+            max-width: 500px;
+            width: 90%;
+        }
+        
+        .desc-title {
+            font-size: 1.2em;
+            font-weight: 600;
+            margin-bottom: 12px;
+            color: #333;
+        }
+        
+        .desc-textarea {
+            width: 100%;
+            height: 200px;
+            padding: 12px;
+            border: 2px solid #e0e0e0;
+            border-radius: 6px;
+            font-size: 1em;
+            font-family: inherit;
+            margin-bottom: 20px;
+            resize: vertical;
+            box-sizing: border-box;
+        }
+        
+        .desc-textarea:focus {
+            border-color: #1a73e8;
+            outline: none;
+        }
+        
+        .desc-buttons {
+            display: flex;
+            justify-content: flex-end;
+            gap: 10px;
+        }
+        
+        .desc-btn-save {
+            padding: 8px 16px;
+            background-color: #1a73e8;
+            color: white;
+            border: none;
+            border-radius: 4px;
+            cursor: pointer;
+            font-weight: 500;
+        }
+        
+        .desc-btn-save:hover {
+            background-color: #0d62d9;
+        }
+        
+        .desc-btn-cancel {
+            padding: 8px 16px;
+            background-color: #f0f0f0;
+            color: #666;
+            border: none;
+            border-radius: 4px;
+            cursor: pointer;
+            font-weight: 500;
+        }
+        
+        .desc-btn-cancel:hover {
+            background-color: #e0e0e0;
+        }
+        
+        /* ====== 列宽度优化 ====== */
+        /* 时间段列：固定宽度，包含时间标签 */
+        td:first-child {
+            min-width: 160px;
+        }
+        
+        /* 时长列：紧凑固定 */
+        td:nth-child(2) {
+            min-width: 100px;
+        }
+        
+        /* 任务名称列：中等宽度 */
+        td:nth-child(3) {
+            min-width: 150px;
+        }
+        
+        /* 标签列：弹性宽度 */
+        td:nth-child(4) {
+            min-width: 180px;
+        }
+        
+        /* 状态列：固定宽度 */
+        td:nth-child(5) {
+            min-width: 100px;
+        }
+        
+        /* 描述列：固定宽度 */
+        td:nth-child(6) {
+            min-width: 100px;
+        }
+        
+        /* 操作列：固定宽度 */
+        td:nth-child(7) {
+            min-width: 90px;
+        }
+        
+        /* 表头宽度对齐 */
+        th:first-child { min-width: 160px; }
+        th:nth-child(2) { min-width: 100px; }
+        th:nth-child(3) { min-width: 150px; }
+        th:nth-child(4) { min-width: 180px; }
+        th:nth-child(5) { min-width: 100px; }
+        th:nth-child(6) { min-width: 100px; }
+        th:nth-child(7) { min-width: 90px; }
+        
+        /* 操作状态指示器 */
+        .operation-indicator {
+            position: fixed;
+            top: 20px;
+            right: 20px;
+            background-color: #1a73e8;
+            color: white;
+            padding: 8px 16px;
+            border-radius: 4px;
+            font-size: 0.9em;
+            z-index: 10002;
+            display: none;
+            box-shadow: 0 2px 8px rgba(0,0,0,0.2);
+        }
+    </style>
+</head>
+<body>
+
+    <!-- 操作状态指示器 -->
+    <div id="operation-indicator" class="operation-indicator"></div>
+    
+    <h2>智能活动日程表</h2>
+    
+    <div style="text-align: center; margin-bottom: 20px; color: #777;">
+        <span id="current-time" class="bold"></span>
+    </div>
+    
+    <!-- 错误提示区域 -->
+    <div id="error-message" class="error-message"></div>
+
+    <!-- 确认对话框 -->
+    <div id="confirm-dialog" class="confirm-dialog" style="display: none;">
+        <div class="confirm-content">
+            <div class="confirm-title">确认删除</div>
+            <div class="confirm-message" id="confirm-message">确定要删除这个任务吗？此操作无法撤销。</div>
+            <div class="confirm-buttons">
+                <button id="confirm-cancel" class="confirm-btn confirm-cancel">取消</button>
+                <button id="confirm-delete" class="confirm-btn confirm-delete">删除</button>
+            </div>
+        </div>
+    </div>
+    
+    <!-- 详细描述对话框 -->
+    <div id="desc-dialog" class="desc-dialog" style="display: none;">
+        <div class="desc-content">
+            <div class="desc-title" id="desc-title">详细描述</div>
+            <textarea id="desc-textarea" class="desc-textarea" placeholder="输入任务的详细描述..."></textarea>
+            <div class="desc-buttons">
+                <button id="desc-cancel" class="desc-btn-cancel">取消</button>
+                <button id="desc-save" class="desc-btn-save">保存</button>
+            </div>
+        </div>
+    </div>
+
+    <div class="schedule-container">
+        <table>
+            <thead>
+                <tr>
+                    <th>时间段</th>
+                    <th>时长</th>
+                    <th>任务/活动</th>
+                    <th>任务进度/标签</th>
+                    <th>执行状态</th>
+                    <th>详细描述</th>
+                    <th>操作</th>
+                </tr>
+            </thead>
+            <tbody id="schedule-body">
+                <!-- 整体开始时间控制行 -->
+                <tr id="control-row" class="control-row">
+                    <td colspan="7" class="control-cell">
+                        <div class="control-label">
+                            <span class="control-label-text">整体开始时间：</span>
+                            <input type="time" id="overall-start-time" class="start-time-input" value="09:00" step="300">
+                            <span style="margin-left: 10px; font-size: 0.9em; color: #666;">
+                                (调整后所有任务时间将整体平移)
+                            </span>
+                        </div>
+                    </td>
+                </tr>
+                
+                <!-- 日程行将在这里动态生成 -->
+                
+                <!-- 添加按钮行 - 保持在最底部 -->
+                <tr id="add-task-row" class="add-task-row">
+                    <td colspan="7" class="add-task-cell">
+                        <div class="add-button">添加新任务</div>
+                    </td>
+                </tr>
+            </tbody>
+        </table>
+    </div>
+    
+    <!-- 任务实时进度显示块 -->
+    <div id="progress-footer" class="progress-footer">
+        <h3 id="progress-title" class="footer-title">当前任务: 正在加载...</h3>
+        <div id="progress-bar-container" class="progress-bar-container">
+            <div id="digital-progress-bar" class="digital-progress-bar"></div>
+            <span id="progress-percentage" class="percentage-label">0.000%</span>
+        </div>
+    </div>
+    
+    <!-- 全局浮动下拉列表容器 -->
+    <div id="floating-dropdown-container">
+        <!-- Dropdown content will be dynamically loaded here when an input is focused -->
+    </div>
+
+<script>
+    // ============================================
+    // 核心数据结构和全局变量
+    // ============================================
+    
+    // 存储从服务器获取的数据
+    let scheduleData = {
+        date: null,
+        overall_start: null,
+        tasks: []
+    };
+    
+    // 整体开始时间（分钟），默认9:00
+    let overallStartTimeMinutes = 9 * 60;
+    
+    // 存储最早任务开始时间和最晚任务结束时间
+    let earliestStartTime = Infinity;
+    let latestEndTime = -Infinity;
+    
+    const scheduleBody = document.getElementById('schedule-body');
+    const addTaskRow = document.getElementById('add-task-row');
+    const controlRow = document.getElementById('control-row');
+    const overallStartTimeInput = document.getElementById('overall-start-time');
+    const timeDisplay = document.getElementById('current-time');
+    const progressBar = document.getElementById('digital-progress-bar');
+    const progressBarContainer = document.getElementById('progress-bar-container');
+    const floatingDropdown = document.getElementById('floating-dropdown-container');
+    const percentageLabel = document.getElementById('progress-percentage');
+    const errorMessage = document.getElementById('error-message');
+    const operationIndicator = document.getElementById('operation-indicator');
+    
+    // 确认对话框元素
+    const confirmDialog = document.getElementById('confirm-dialog');
+    const confirmMessage = document.getElementById('confirm-message');
+    const confirmCancelBtn = document.getElementById('confirm-cancel');
+    const confirmDeleteBtn = document.getElementById('confirm-delete');
+    
+    // 描述对话框元素
+    const descDialog = document.getElementById('desc-dialog');
+    const descTextarea = document.getElementById('desc-textarea');
+    const descSaveBtn = document.getElementById('desc-save');
+    const descCancelBtn = document.getElementById('desc-cancel');
+    const descTitle = document.getElementById('desc-title');
+    
+    // 待删除的任务索引
+    let pendingDeleteTaskIndex = null;
+    // 当前编辑描述的任务索引
+    let currentDescTaskIndex = null;
+    // 当前编辑标签的任务索引
+    let currentEditingTagTaskIndex = null;
+    
+    // 用于跟踪任务索引到显示行索引的映射
+    let taskIndexToDisplayIndex = new Map();
+    let displayRows = [];
+    
+    // 自动检查定时器
+    let autoCheckInterval = null;
+    
+    // 操作状态锁
+    let isOperationInProgress = false;
+    let operationQueue = [];
+
+    // ============================================
+    // 操作队列管理（防抖和防重复）
+    // ============================================
+    
+    /**
+     * 安全执行操作，防止重复操作
+     */
+    async function safeOperation(operationName, operationFunc) {
+        if (isOperationInProgress) {
+            operationQueue.push({ name: operationName, func: operationFunc });
+            showError(`请等待上一个操作完成: ${operationName}`);
+            return;
+        }
+        
+        try {
+            isOperationInProgress = true;
+            showOperationIndicator(`${operationName}中...`);
+            await operationFunc();
+            showOperationIndicator(`${operationName}完成`, true);
+        } catch (error) {
+            console.error(`${operationName}失败:`, error);
+            showOperationIndicator(`${operationName}失败`, false);
+            throw error;
+        } finally {
+            isOperationInProgress = false;
+            setTimeout(() => {
+                operationIndicator.style.display = 'none';
+                if (operationQueue.length > 0) {
+                    const nextOp = operationQueue.shift();
+                    safeOperation(nextOp.name, nextOp.func);
+                }
+            }, 500);
+        }
+    }
+    
+    /**
+     * 显示操作状态指示器
+     */
+    function showOperationIndicator(message, isSuccess = null) {
+        operationIndicator.textContent = message;
+        operationIndicator.style.display = 'block';
+        
+        if (isSuccess === true) {
+            operationIndicator.style.backgroundColor = '#34a853';
+        } else if (isSuccess === false) {
+            operationIndicator.style.backgroundColor = '#d32f2f';
+        } else {
+            operationIndicator.style.backgroundColor = '#1a73e8';
+        }
+    }
+
+    // ============================================
+    // 服务器通信函数
+    // ============================================
+    
+    /**
+     * 从服务器获取数据
+     */
+    async function fetchFromServer(endpoint, method = 'GET', data = null) {
+        const url = endpoint;
+        const options = {
+            method,
+            headers: {
+                'Content-Type': 'application/json',
+            },
+        };
+        
+        if (data) {
+            options.body = JSON.stringify(data);
+        }
+        
+        try {
+            const response = await fetch(url, options);
+            if (!response.ok) {
+                throw new Error(`HTTP ${response.status}`);
+            }
+            return await response.json();
+        } catch (error) {
+            console.error('服务器请求失败:', error);
+            throw error;
+        }
+    }
+    
+    /**
+     * 获取当日日程数据
+     */
+    async function fetchTodaySchedule() {
+        try {
+            const data = await fetchFromServer('api/schedule/today');
+            
+            const today = new Date().toISOString().split('T')[0];
+            localStorage.setItem('schedule_cache_' + today, JSON.stringify(data));
+            
+            return data;
+        } catch (error) {
+            const today = new Date().toISOString().split('T')[0];
+            const cached = localStorage.getItem('schedule_cache_' + today);
+            if (cached) {
+                return JSON.parse(cached);
+            }
+            throw error;
+        }
+    }
+    
+    /**
+     * 从服务器获取任务的历史标签
+     */
+    async function fetchTaskTagsHistory(taskName) {
+        try {
+            const response = await fetch(`/Time_Progress_Tracker/api/tags/history?task_name=${encodeURIComponent(taskName)}`);
+            const data = await response.json();
+            if (data.success) {
+                return data.tags || [];
+            }
+            return [];
+        } catch (error) {
+            console.error('获取历史标签失败:', error);
+            return [];
+        }
+    }
+    
+    /**
+     * 刷新日程数据
+     */
+    async function refreshSchedule() {
+        try {
+            const data = await fetchTodaySchedule();
+            scheduleData = data;
+            overallStartTimeMinutes = timeToMinutes(data.overall_start);
+            overallStartTimeInput.value = data.overall_start;
+            renderScheduleFromServer();
+            return true;
+        } catch (error) {
+            showError('无法获取日程数据，使用本地缓存');
+            const today = new Date().toISOString().split('T')[0];
+            const cached = localStorage.getItem('schedule_cache_' + today);
+            if (cached) {
+                scheduleData = JSON.parse(cached);
+                overallStartTimeMinutes = timeToMinutes(scheduleData.overall_start);
+                overallStartTimeInput.value = scheduleData.overall_start;
+                renderScheduleFromServer();
+            } else {
+                const today = new Date().toISOString().split('T')[0];
+                scheduleData = {
+                    date: today,
+                    overall_start: '09:00',
+                    tasks: []
+                };
+                renderScheduleFromServer();
+            }
+            return false;
+        }
+    }
+    
+    /**
+     * 开始任务
+     */
+    async function startTask(taskId) {
+        return safeOperation('开始任务', async () => {
+            const task = scheduleData.tasks[taskId];
+            if (task) {
+                task.start_time = getCurrentBeijingTime().timeStr.substring(0, 5);
+                task.end_time = null;
+                task.status = 'in_progress';
+                updateAllDisplays();
+            }
+            
+            await fetchFromServer('api/schedule/start', 'POST', {
+                task_id: taskId,
+                timestamp: new Date().toISOString()
+            });
+            
+            await refreshSchedule();
+        });
+    }
+    
+    /**
+     * 完成任务
+     */
+    async function completeTask(taskId) {
+        return safeOperation('完成任务', async () => {
+            const task = scheduleData.tasks[taskId];
+            if (task) {
+                task.end_time = getCurrentBeijingTime().timeStr.substring(0, 5);
+                task.status = 'completed';
+                updateAllDisplays();
+            }
+            
+            await fetchFromServer('api/schedule/complete', 'POST', {
+                task_id: taskId,
+                timestamp: new Date().toISOString()
+            });
+            
+            await refreshSchedule();
+        });
+    }
+    
+    /**
+     * 重置任务（双击恢复）
+     */
+    async function resetTask(taskId) {
+        return safeOperation('重置任务', async () => {
+            const currentTime = getCurrentBeijingTime().totalMinutes;
+            const task = scheduleData.tasks[taskId];
+            
+            const displayItems = calculateDisplaySchedule();
+            const taskDisplay = displayItems.find(item => item.type === 'task' && item.taskIndex === taskId);
+            
+            if (!taskDisplay) {
+                showError('任务未找到');
+                return;
+            }
+            
+            const taskEnd = taskDisplay.end;
+            
+            if (currentTime > taskEnd) {
+                showError('时间块已结束，无法恢复');
+                return;
+            }
+            
+            if (task) {
+                task.start_time = null;
+                task.end_time = null;
+                task.status = 'not_started';
+                updateAllDisplays();
+            }
+            
+            await fetchFromServer('api/schedule/reset', 'POST', {
+                task_id: taskId
+            });
+            
+            await refreshSchedule();
+        });
+    }
+    
+    /**
+     * 保存详细描述
+     */
+    async function saveDescription(taskId, description) {
+        try {
+            if (scheduleData.tasks[taskId]) {
+                scheduleData.tasks[taskId].description = description;
+                updateAllDisplays();
+            }
+            
+            await fetchFromServer('api/schedule/desc', 'POST', {
+                task_id: taskId,
+                description: description
+            });
+            return true;
+        } catch (error) {
+            showError('保存描述失败');
+            return false;
+        }
+    }
+    
+    /**
+     * 保存标签到服务器
+     */
+    async function saveTag(taskId, tagString) {
+        try {
+            if (scheduleData.tasks[taskId]) {
+                scheduleData.tasks[taskId].tag = tagString;
+                updateAllDisplays();
+            }
+            
+            await fetchFromServer('api/schedule/tag', 'POST', {
+                task_id: taskId,
+                tag: tagString
+            });
+            return true;
+        } catch (error) {
+            showError('保存标签失败');
+            return false;
+        }
+    }
+    
+    /**
+     * 更新任务属性到服务器
+     */
+    async function updateTask(taskId, updates) {
+        return safeOperation('更新任务', async () => {
+            const task = scheduleData.tasks[taskId];
+            if (task) {
+                Object.assign(task, updates);
+                updateAllDisplays();
+            }
+            
+            await fetchFromServer('api/schedule/update_task', 'POST', {
+                task_id: taskId,
+                updates: updates
+            });
+            
+            await refreshSchedule();
+            return true;
+        });
+    }
+    
+    /**
+     * 添加新任务到服务器
+     */
+    async function addTaskToServer(taskData) {
+        return safeOperation('添加任务', async () => {
+            const newTaskId = scheduleData.tasks.length;
+            const newTask = {
+                id: newTaskId,
+                name: taskData.name,
+                duration: taskData.duration,
+                start_time: null,
+                end_time: null,
+                status: 'not_started',
+                tag: '',
+                description: ''
+            };
+            
+            scheduleData.tasks.push(newTask);
+            updateAllDisplays();
+            
+            await fetchFromServer('api/schedule/add_task', 'POST', {
+                task: taskData
+            });
+            
+            await refreshSchedule();
+            
+            setTimeout(() => {
+                const displayIndex = taskIndexToDisplayIndex.get(newTaskId);
+                if (displayIndex !== undefined) {
+                    const newTaskRow = document.querySelector(`tr[data-task-index="${newTaskId}"]`);
+                    if (newTaskRow) {
+                        const newTaskNameCell = newTaskRow.querySelector('td:nth-child(3)');
+                        if (newTaskNameCell) {
+                            makeTaskNameEditable(newTaskNameCell, newTaskRow);
+                        }
+                    }
+                }
+            }, 50);
+            
+            return true;
+        });
+    }
+    
+    /**
+     * 从服务器删除任务
+     */
+    async function deleteTaskFromServer(taskId) {
+        return safeOperation('删除任务', async () => {
+            const deletedTask = scheduleData.tasks[taskId];
+            
+            scheduleData.tasks.splice(taskId, 1);
+            scheduleData.tasks = reindexTasks(scheduleData.tasks);
+            updateAllDisplays();
+            
+            await fetchFromServer('api/schedule/delete_task', 'POST', {
+                task_id: deletedTask ? deletedTask.id : taskId
+            });
+            
+            await refreshSchedule();
+            return true;
+        });
+    }
+    
+    /**
+     * 移动任务（上移/下移）
+     */
+    async function moveTaskInServer(taskId, direction) {
+        return safeOperation('移动任务', async () => {
+            const tasks = scheduleData.tasks;
+            
+            if (direction === 'up' && taskId === 0) return;
+            if (direction === 'down' && taskId === tasks.length - 1) return;
+            
+            const newIndex = direction === 'up' ? taskId - 1 : taskId + 1;
+            
+            const temp = tasks[taskId];
+            tasks[taskId] = tasks[newIndex];
+            tasks[newIndex] = temp;
+            
+            scheduleData.tasks = reindexTasks(tasks);
+            updateAllDisplays();
+            
+            await fetchFromServer('api/schedule/move_task', 'POST', {
+                task_id: taskId,
+                direction: direction
+            });
+            
+            await refreshSchedule();
+            return true;
+        });
+    }
+
+    // ============================================
+    // 核心计算引擎
+    // ============================================
+    
+    /**
+     * 重新索引任务
+     */
+    function reindexTasks(tasks) {
+        return tasks.map((task, index) => ({
+            ...task,
+            id: index
+        }));
+    }
+    
+    /**
+     * 计算完整的显示日程
+     */
+    function calculateDisplaySchedule() {
+        let currentTime = overallStartTimeMinutes;
+        const displayItems = [];
+        
+        taskIndexToDisplayIndex.clear();
+        
+        // 重置最早最晚时间
+        earliestStartTime = currentTime;
+        latestEndTime = currentTime;
+        
+        const tasksToUse = scheduleData.tasks;
+        
+        tasksToUse.forEach((task, taskIndex) => {
+            taskIndexToDisplayIndex.set(taskIndex, displayItems.length);
+            
+            displayItems.push({
+                type: "task",
+                taskIndex: taskIndex,
+                start: currentTime,
+                end: currentTime + task.duration,
+                duration: task.duration,
+                name: task.name,
+                activityName: task.name,
+                editable: true
+            });
+            
+            // 更新最晚结束时间
+            latestEndTime = currentTime + task.duration;
+            
+            currentTime += task.duration;
+            
+            if (taskIndex < tasksToUse.length - 1) {
+                displayItems.push({
+                    type: "gap",
+                    start: currentTime,
+                    end: currentTime + 10,
+                    duration: 10,
+                    name: "空档",
+                    activityName: "空档",
+                    editable: false
+                });
+                
+                currentTime += 10;
+            }
+        });
+        
+        return displayItems;
+    }
+    
+    /**
+     * 验证时间安排是否有效
+     */
+    function validateSchedule() {
+        const displayItems = calculateDisplaySchedule();
+        if (displayItems.length === 0) return true;
+        
+        const lastItem = displayItems[displayItems.length - 1];
+        return lastItem.end <= 24 * 60;
+    }
+    
+    /**
+     * 验证添加新任务是否会导致超过24:00
+     */
+    function canAddNewTask(newTaskDuration = 10) {
+        const tempTasks = [...scheduleData.tasks, { 
+            duration: newTaskDuration, 
+            name: "新任务"
+        }];
+        
+        let currentTime = overallStartTimeMinutes;
+        
+        tempTasks.forEach((task, index) => {
+            currentTime += task.duration;
+            
+            if (index < tempTasks.length - 1) {
+                currentTime += 10;
+            }
+        });
+        
+        return currentTime <= 24 * 60;
+    }
+    
+    // ============================================
+    // 时间处理函数
+    // ============================================
+    
+    /**
+     * 将时间字符串转换为分钟
+     */
+    function timeToMinutes(timeStr) {
+        if (!timeStr) return -1;
+        const [hours, minutes] = timeStr.split(':').map(Number);
+        return hours * 60 + minutes;
+    }
+
+    /**
+     * 将分钟数转换为时间字符串
+     */
+    function minutesToTime(minutes) {
+        if (minutes < 0) return "00:00";
+        const hours = Math.floor(minutes / 60);
+        const mins = Math.floor(minutes % 60);
+        return `${hours.toString().padStart(2, '0')}:${mins.toString().padStart(2, '0')}`;
+    }
+
+    /**
+     * 获取当前的北京时间
+     */
+    function getCurrentBeijingTime() {
+        const now = new Date();
+        const utc = now.getTime() + (now.getTimezoneOffset() * 60000);
+        const beijingTime = new Date(utc + (3600000 * 8));
+
+        const hours = beijingTime.getHours();
+        const minutes = beijingTime.getMinutes();
+        const seconds = beijingTime.getSeconds();
+        
+        const totalMinutesIncludingSeconds = hours * 60 + minutes + (seconds / 60);
+        const timeStr = [hours, minutes, seconds].map(unit => unit.toString().padStart(2, '0')).join(':');
+        
+        return { totalMinutes: totalMinutesIncludingSeconds, timeStr };
+    }
+
+    /**
+     * 计算当前时间在给定时间段内的进度和状态
+     */
+    function calculateTimeProgress(startMin, endMin, currentMin) {
+        let totalDuration = endMin - startMin;
+        let elapsedMinutes = currentMin - startMin;
+
+        const isOvernight = startMin > endMin;
+
+        if (isOvernight) {
+            totalDuration += 24 * 60;
+            if (currentMin < startMin) {
+                elapsedMinutes += 24 * 60;
+            }
+        }
+        
+        const isCurrent = (elapsedMinutes >= 0) && (elapsedMinutes <= totalDuration);
+
+        if (!isCurrent) {
+            return { isCurrent: false, progress: 0 };
+        }
+
+        const progress = Math.max(0, Math.min(1, elapsedMinutes / totalDuration));
+        
+        return { isCurrent: true, progress };
+    }
+
+    // ============================================
+    // 错误处理
+    // ============================================
+    
+    /**
+     * 显示错误信息
+     */
+    function showError(message) {
+        errorMessage.textContent = message;
+        errorMessage.style.display = 'block';
+        setTimeout(() => {
+            errorMessage.style.display = 'none';
+        }, 3000);
+    }
+    
+    // ============================================
+    // Canvas 进度条系统
+    // ============================================
+    
+    /**
+     * 设置所有行的Canvas元素
+     */
+    function setupProgressCanvases() {
+        document.querySelectorAll('#schedule-body tr').forEach(row => {
+            if (row.id === 'control-row' || row.id === 'add-task-row') return;
+            
+            const firstTd = row.querySelector('td');
+            if (firstTd) {
+                firstTd.style.position = 'relative';
+
+                let canvas = firstTd.querySelector('.progress-canvas');
+                if (!canvas) {
+                    canvas = document.createElement('canvas');
+                    canvas.className = 'progress-canvas';
+                    firstTd.appendChild(canvas);
+                }
+            }
+        });
+    }
+    
+    /**
+     * 绘制单个进度条
+     */
+    function drawProgressBar(tdElement, rowElement, currentMinutes) {
+        let canvas = tdElement.querySelector('.progress-canvas');
+        if (!canvas) return;
+
+        const rowWidth = rowElement.offsetWidth;
+        canvas.width = rowWidth;
+        canvas.height = tdElement.offsetHeight;
+        canvas.style.width = `${rowWidth}px`;
+        canvas.style.height = `${tdElement.offsetHeight}px`;
+        
+        const ctx = canvas.getContext('2d');
+        const width = canvas.width;
+        const height = canvas.height;
+        const startMinutes = timeToMinutes(rowElement.dataset.start);
+        const endMinutes = timeToMinutes(rowElement.dataset.end);
+        
+        ctx.clearRect(0, 0, width, height);
+        
+        if (rowElement.classList.contains('current-task')) {
+            const { progress } = calculateTimeProgress(startMinutes, endMinutes, currentMinutes);
+            
+            const progressColor = rowElement.classList.contains('gap-row') 
+                ? 'rgba(173, 216, 230, 0.5)'
+                : 'rgba(26, 115, 232, 0.15)';
+                
+            ctx.fillStyle = progressColor;
+            ctx.fillRect(0, 0, width * progress, height);
+        }
+    }
+    
+    /**
+     * 更新所有Canvas进度条
+     */
+    function updateCanvasProgressBars() {
+        const { totalMinutes: currentMinutes } = getCurrentBeijingTime();
+        
+        document.querySelectorAll('#schedule-body tr.task-row, #schedule-body tr.gap-row').forEach(row => {
+            const firstTd = row.querySelector('td');
+            if (firstTd) {
+                drawProgressBar(firstTd, row, currentMinutes);
+            }
+        });
+    }
+    
+    // ============================================
+    // 渲染引擎
+    // ============================================
+    
+    /**
+     * 解析标签字符串为数组
+     */
+    function parseTags(tagString) {
+        if (!tagString || tagString.trim() === '') return [];
+        return tagString.split(',').map(tag => tag.trim()).filter(tag => tag !== '');
+    }
+    
+    /**
+     * 格式化标签数组为字符串
+     */
+    function formatTags(tagsArray) {
+        return tagsArray.join(', ');
+    }
+    
+    /**
+     * 渲染状态按钮
+     */
+    function renderStatusButton(taskIndex, taskStart, taskEnd, task) {
+        const currentTime = getCurrentBeijingTime().totalMinutes;
+        const isCurrent = currentTime >= taskStart && currentTime <= taskEnd;
+        
+        if (!isCurrent) {
+            if (task.status === 'completed') {
+                return '<span class="status-text completed">已完成</span>';
+            } else {
+                return '<span class="status-text not-started">未开始</span>';
+            }
+        }
+        
+        switch(task.status) {
+            case 'not_started':
+                return `<button class="status-btn status-btn-start" 
+                        onclick="handleStartTask(${taskIndex})">开始</button>`;
+            case 'in_progress':
+                return `<button class="status-btn status-btn-complete" 
+                        onclick="handleCompleteTask(${taskIndex})">完成</button>`;
+            case 'completed':
+                return `<button class="status-btn status-btn-completed" 
+                        ondblclick="handleResetTask(${taskIndex})">已完成</button>`;
+            default:
+                return '';
+        }
+    }
+    
+    /**
+     * 渲染标签显示区域
+     */
+    function renderTagsDisplay(tags, taskIndex) {
+        if (!tags || tags.length === 0) {
+            return `<div class="tags-display" onclick="handleTagsClick(${taskIndex})">
+                <span class="empty-tag-placeholder">点击添加标签</span>
+            </div>`;
+        }
+        
+        const tagElements = tags.map(tag => 
+            `<span class="tag-item">${tag}</span>`
+        ).join('');
+        
+        return `<div class="tags-display" onclick="handleTagsClick(${taskIndex})">${tagElements}</div>`;
+    }
+    
+    /**
+     * 渲染标签输入框
+     */
+    function renderTagsInput(tags, taskIndex) {
+        const tagString = formatTags(tags);
+        return `<input type="text" 
+                value="${tagString}" 
+                class="tags-input-field" 
+                data-task-index="${taskIndex}"
+                placeholder="输入标签，用逗号分隔"
+                onfocus="handleTagsInputFocus(event, ${taskIndex})"
+                onblur="handleTagsInputBlur(event, ${taskIndex})"
+                onkeyup="handleTagsInputKeyup(event, ${taskIndex})">`;
+    }
+    
+    /**
+     * 从服务器数据渲染日程表
+     */
+    function renderScheduleFromServer() {
+        displayRows = calculateDisplaySchedule();
+        
+        const rowsToRemove = [];
+        for (let i = 0; i < scheduleBody.children.length; i++) {
+            const row = scheduleBody.children[i];
+            if (row.id !== 'control-row' && row.id !== 'add-task-row') {
+                rowsToRemove.push(row);
+            }
+        }
+        rowsToRemove.forEach(row => row.remove());
+        
+        displayRows.forEach((item, displayIndex) => {
+            const row = document.createElement('tr');
+            
+            row.dataset.start = minutesToTime(item.start);
+            row.dataset.end = minutesToTime(item.end);
+            row.dataset.duration = item.duration;
+            row.dataset.activityName = item.activityName;
+            row.dataset.displayIndex = displayIndex;
+            
+            if (item.type === "task") {
+                row.dataset.taskIndex = item.taskIndex;
+                row.className = "task-row";
+            } else {
+                row.className = "gap-row";
+            }
+            
+            const timeCell = document.createElement('td');
+            const durationCell = document.createElement('td');
+            const nameCell = document.createElement('td');
+            const optionCell = document.createElement('td');
+            const statusCell = document.createElement('td');
+            const descCell = document.createElement('td');
+            const actionCell = document.createElement('td');
+            
+            // 时间段
+            timeCell.innerHTML = `<span class="content time-label">${minutesToTime(item.start)} - ${minutesToTime(item.end)}</span>`;
+            
+            // 时长
+            if (item.type === "task") {
+                const task = scheduleData.tasks[item.taskIndex];
+                durationCell.innerHTML = `<span class="content duration-editable">${task ? task.duration : item.duration}min</span>`;
+            } else {
+                durationCell.innerHTML = '<span class="content">10min</span>';
+            }
+            
+            // 任务名称
+            nameCell.innerHTML = `<span class="content bold ${item.type === 'task' ? 'task-name-editable' : ''}">${item.name}</span>`;
+            
+            // 标签列
+            optionCell.classList.add('option-cell');
+            if (item.type === "gap") {
+                optionCell.innerHTML = '';
+            } else {
+                const task = scheduleData.tasks[item.taskIndex];
+                const tagString = task ? (task.tag || '') : '';
+                const tags = parseTags(tagString);
+                
+                if (currentEditingTagTaskIndex === item.taskIndex) {
+                    optionCell.innerHTML = renderTagsInput(tags, item.taskIndex);
+                } else {
+                    optionCell.innerHTML = renderTagsDisplay(tags, item.taskIndex);
+                }
+            }
+            
+            // 状态列
+            statusCell.classList.add('status-cell');
+            if (item.type === "task") {
+                const task = scheduleData.tasks[item.taskIndex];
+                if (task) {
+                    statusCell.innerHTML = renderStatusButton(item.taskIndex, item.start, item.end, task);
+                } else {
+                    statusCell.innerHTML = '';
+                }
+            } else {
+                statusCell.innerHTML = '';
+            }
+            
+            // 详细描述列
+            descCell.classList.add('desc-cell');
+            if (item.type === "task") {
+                const task = scheduleData.tasks[item.taskIndex];
+                const hasDescription = task && task.description && task.description.trim() !== '';
+                descCell.innerHTML = `<button class="desc-btn ${hasDescription ? 'has-desc' : ''}" onclick="handleOpenDesc(${item.taskIndex}, '${item.name.replace(/'/g, "\\'")}')">📝${hasDescription ? '已填' : '描述'}</button>`;
+            } else {
+                descCell.innerHTML = '';
+            }
+            
+            // 操作列
+            actionCell.classList.add('action-cell');
+            if (item.type === "task") {
+                actionCell.innerHTML = renderActionButtons(item.taskIndex);
+            } else {
+                actionCell.innerHTML = '';
+            }
+            
+            row.appendChild(timeCell);
+            row.appendChild(durationCell);
+            row.appendChild(nameCell);
+            row.appendChild(optionCell);
+            row.appendChild(statusCell);
+            row.appendChild(descCell);
+            row.appendChild(actionCell);
+            
+            scheduleBody.insertBefore(row, addTaskRow);
+        });
+        
+        setupProgressCanvases();
+        setupEventDelegation();
+    }
+    
+    /**
+     * 重新渲染整个日程表
+     */
+    function renderSchedule() {
+        renderScheduleFromServer();
+    }
+    
+    /**
+     * 渲染操作按钮
+     */
+    function renderActionButtons(taskIndex) {
+        const tasksToUse = scheduleData.tasks;
+            
+        const isFirstTask = taskIndex === 0;
+        const isLastTask = taskIndex === tasksToUse.length - 1;
+        
+        return `
+            <div class="action-buttons">
+                <button class="action-btn move-up-btn" ${isFirstTask ? 'disabled' : ''} title="上移" onclick="handleMoveTask(${taskIndex}, 'up')">↑</button>
+                <button class="action-btn move-down-btn" ${isLastTask ? 'disabled' : ''} title="下移" onclick="handleMoveTask(${taskIndex}, 'down')">↓</button>
+                <button class="action-btn delete-btn" title="删除" onclick="showDeleteConfirm(${taskIndex})">×</button>
+            </div>
+        `;
+    }
+    
+    /**
+     * 更新所有显示
+     */
+    function updateAllDisplays() {
+        renderSchedule();
+        updateProgressBar();
+    }
+    
+    // ============================================
+    // 操作功能：删除和移动
+    // ============================================
+    
+    /**
+     * 显示删除确认对话框
+     */
+    window.showDeleteConfirm = function(taskIndex) {
+        if (taskIndex < 0 || taskIndex >= scheduleData.tasks.length) return;
+        if (isOperationInProgress) {
+            showError('请等待上一个操作完成');
+            return;
+        }
+        
+        const task = scheduleData.tasks[taskIndex];
+        pendingDeleteTaskIndex = taskIndex;
+        confirmMessage.textContent = `确定要删除任务 "${task.name}" 吗？此操作无法撤销。`;
+        confirmDialog.style.display = 'flex';
+    };
+    
+    /**
+     * 删除任务
+     */
+    async function deleteTask(taskIndex) {
+        if (taskIndex < 0 || taskIndex >= scheduleData.tasks.length) return;
+        
+        try {
+            await deleteTaskFromServer(taskIndex);
+            showError(`任务已删除`);
+        } catch (error) {
+            showError('删除任务失败');
+        }
+    }
+    
+    /**
+     * 移动任务处理
+     */
+    window.handleMoveTask = async function(taskIndex, direction) {
+        try {
+            await moveTaskInServer(taskIndex, direction);
+            showError(`任务已${direction === 'up' ? '上移' : '下移'}`);
+        } catch (error) {
+            showError('移动任务失败');
+        }
+    };
+    
+    // ============================================
+    // 标签编辑功能
+    // ============================================
+    
+    /**
+     * 立即保存正在编辑的标签
+     */
+    async function saveEditingTags(taskIndex) {
+        const input = document.querySelector(`.tags-input-field[data-task-index="${taskIndex}"]`);
+        if (input) {
+            const newValue = input.value.trim();
+            const row = input.closest('tr');
+            const activityName = row.dataset.activityName;
+            
+            if (activityName) {
+                await saveTag(taskIndex, newValue);
+            }
+        }
+        
+        // 隐藏下拉列表
+        if (parseInt(floatingDropdown.dataset.activeTask) === taskIndex) {
+            floatingDropdown.style.display = 'none';
+            floatingDropdown.dataset.activeTask = '';
+        }
+    }
+
+    /**
+     * 点击标签显示区域
+     */
+    window.handleTagsClick = async function(taskIndex) {
+        // 如果当前有正在编辑的标签，先保存它
+        if (currentEditingTagTaskIndex !== null && currentEditingTagTaskIndex !== taskIndex) {
+            await saveEditingTags(currentEditingTagTaskIndex);
+        }
+        
+        // 设置新的编辑任务索引
+        currentEditingTagTaskIndex = taskIndex;
+        updateAllDisplays();
+        
+        // 聚焦到输入框
+        setTimeout(() => {
+            const input = document.querySelector(`.tags-input-field[data-task-index="${taskIndex}"]`);
+            if (input) {
+                input.focus();
+                input.select();
+            }
+        }, 10);
+    };
+    
+    /**
+     * 标签输入框获取焦点 - 从服务器获取历史标签
+     */
+    window.handleTagsInputFocus = async function(event, taskIndex) {
+        const input = event.target;
+        const row = input.closest('tr');
+        const activityName = row.dataset.activityName;
+        
+        // 显示加载状态
+        floatingDropdown.innerHTML = '<div style="color:#999;padding:8px 12px;font-size:0.9em;">加载历史标签中...</div>';
+
+        const rect = input.getBoundingClientRect();
+        
+        floatingDropdown.style.left = `${rect.left}px`;
+        floatingDropdown.style.top = `${rect.bottom + 5}px`;
+        floatingDropdown.style.width = `${rect.width}px`;
+        floatingDropdown.style.display = 'block';
+        
+        floatingDropdown.dataset.activeTask = taskIndex;
+        
+        // 从服务器获取历史标签
+        try {
+            const historyTags = await fetchTaskTagsHistory(activityName);
+            
+            if (historyTags.length === 0) {
+                floatingDropdown.innerHTML = '<div style="color:#999;padding:8px 12px;font-size:0.9em;">暂无历史标签，直接输入标签（用逗号分隔）</div>';
+            } else {
+                // 渲染历史标签下拉列表
+                const listItems = historyTags.map(tag => 
+                    `<li data-value="${tag.replace(/"/g, '&quot;')}" onclick="handleTagOptionSelect(event, ${taskIndex}, '${tag.replace(/'/g, "\\'")}')">${tag}</li>`
+                ).join('');
+                
+                floatingDropdown.innerHTML = `
+                    <div style="color:#666;padding:4px 12px 2px;font-size:0.85em;border-bottom:1px solid #eee;">历史标签（点击添加）</div>
+                    <ul class="option-dropdown-list">${listItems}</ul>
+                    <div style="color:#999;padding:2px 12px 8px;font-size:0.8em;">或用逗号分隔输入新标签，按Enter保存</div>
+                `;
+            }
+        } catch (error) {
+            floatingDropdown.innerHTML = '<div style="color:#ff6b6b;padding:8px 12px;font-size:0.9em;">加载失败，请直接输入</div>';
+        }
+    };
+    
+    /**
+     * 标签输入框键盘事件
+     */
+    window.handleTagsInputKeyup = async function(event, taskIndex) {
+        if (event.key === 'Enter') {
+            event.preventDefault();
+            await saveTags(taskIndex);
+            
+            floatingDropdown.style.display = 'none';
+            currentEditingTagTaskIndex = null;
+            updateAllDisplays();
+        } else if (event.key === 'Escape') {
+            // 按ESC键取消编辑
+            currentEditingTagTaskIndex = null;
+            
+            if (parseInt(floatingDropdown.dataset.activeTask) === taskIndex) {
+                floatingDropdown.style.display = 'none';
+                floatingDropdown.dataset.activeTask = '';
+            }
+            
+            updateAllDisplays();
+        }
+    };
+    
+    /**
+     * 标签输入框失去焦点
+     */
+    window.handleTagsInputBlur = async function(event, taskIndex) {
+        const input = event.target;
+        
+        // 延迟处理，给点击新输入框留出时间
+        setTimeout(async () => {
+            // 检查焦点是否转移到了下拉列表或新输入框
+            const activeElement = document.activeElement;
+            const isFocusOnDropdown = floatingDropdown.contains(activeElement);
+            const isFocusOnNewInput = activeElement.classList.contains('tags-input-field') && 
+                                    parseInt(activeElement.dataset.taskIndex) !== taskIndex;
+            
+            // 如果焦点转移到了新输入框，让新输入框的click/focus事件处理
+            if (isFocusOnNewInput) {
+                return;
+            }
+            
+            // 如果焦点在下拉列表上，保持下拉列表显示
+            if (isFocusOnDropdown) {
+                return;
+            }
+            
+            // 否则保存标签并关闭编辑
+            await saveTags(taskIndex);
+            
+            if (parseInt(floatingDropdown.dataset.activeTask) === taskIndex) {
+                floatingDropdown.style.display = 'none';
+                floatingDropdown.dataset.activeTask = '';
+            }
+            
+            currentEditingTagTaskIndex = null;
+            updateAllDisplays();
+        }, 150);
+    };
+    
+    /**
+     * 保存标签
+     */
+    async function saveTags(taskIndex) {
+        const input = document.querySelector(`.tags-input-field[data-task-index="${taskIndex}"]`);
+        if (!input) return;
+        
+        const newValue = input.value.trim();
+        const row = input.closest('tr');
+        const activityName = row.dataset.activityName;
+        
+        if (!activityName) return;
+
+        // 保存标签到服务器
+        await saveTag(taskIndex, newValue);
+        
+        // 隐藏下拉列表
+        if (parseInt(floatingDropdown.dataset.activeTask) === taskIndex) {
+            floatingDropdown.style.display = 'none';
+            floatingDropdown.dataset.activeTask = '';
+        }
+        
+        // 更新显示
+        currentEditingTagTaskIndex = null;
+        updateAllDisplays();
+    }
+    
+    /**
+     * 选择标签选项
+     */
+    window.handleTagOptionSelect = async function(event, taskIndex, selectedValue) {
+        event.preventDefault();
+        event.stopPropagation();
+        
+        const input = document.querySelector(`.tags-input-field[data-task-index="${taskIndex}"]`);
+        if (!input) return;
+
+        const currentValue = input.value.trim();
+        const currentTags = currentValue ? parseTags(currentValue) : [];
+        
+        // 添加新标签（如果不存在）
+        if (!currentTags.includes(selectedValue)) {
+            currentTags.push(selectedValue);
+        }
+        
+        const newTagString = formatTags(currentTags);
+        input.value = newTagString;
+        
+        // 只调用一次保存函数 - 使用 saveEditingTags
+        await saveEditingTags(taskIndex);
+        
+        currentEditingTagTaskIndex = null;
+        updateAllDisplays();
+        
+        floatingDropdown.style.display = 'none';
+    };
+    
+    // ============================================
+    // 时长编辑功能
+    // ============================================
+    
+    /**
+     * 将时长单元格转换为输入框
+     */
+    function makeDurationEditable(cell, row) {
+        const taskIndex = parseInt(row.dataset.taskIndex);
+        if (isNaN(taskIndex)) return;
+        
+        const task = scheduleData.tasks[taskIndex];
+        if (!task) return;
+        
+        const currentMinutes = task.duration;
+        
+        const input = document.createElement('input');
+        input.type = 'number';
+        input.className = 'duration-input';
+        input.value = currentMinutes;
+        input.min = 1;
+        input.max = 1440;
+        
+        cell.innerHTML = '';
+        cell.appendChild(input);
+        input.focus();
+        input.select();
+        
+        input.addEventListener('keydown', function(event) {
+            if (event.key === 'Enter') {
+                const newMinutes = parseInt(input.value);
+                if (isNaN(newMinutes) || newMinutes < 1) {
+                    showError('请输入有效的分钟数（大于0）');
+                    restoreDurationDisplay(cell, currentMinutes);
+                    return;
+                }
+                
+                updateTaskDuration(taskIndex, newMinutes);
+            } else if (event.key === 'Escape') {
+                restoreDurationDisplay(cell, currentMinutes);
+            }
+        });
+        
+        input.addEventListener('blur', function() {
+            setTimeout(() => {
+                if (cell.contains(input)) {
+                    restoreDurationDisplay(cell, currentMinutes);
+                }
+            }, 100);
+        });
+    }
+
+    /**
+     * 恢复时长显示
+     */
+    function restoreDurationDisplay(cell, minutes) {
+        cell.innerHTML = `<span class="content duration-editable">${minutes}min</span>`;
+    }
+
+    /**
+     * 更新任务时长
+     */
+    async function updateTaskDuration(taskIndex, newDuration) {
+        try {
+            await updateTask(taskIndex, { duration: newDuration });
+        } catch (error) {
+            showError('更新时长失败');
+        }
+    }
+    
+    // ============================================
+    // 任务名称编辑功能
+    // ============================================
+    
+    /**
+     * 将任务名称单元格转换为输入框
+     */
+    function makeTaskNameEditable(cell, row) {
+        const taskIndex = parseInt(row.dataset.taskIndex);
+        if (isNaN(taskIndex)) return;
+        
+        const task = scheduleData.tasks[taskIndex];
+        if (!task) return;
+        
+        const currentName = task.name;
+        
+        const input = document.createElement('input');
+        input.type = 'text';
+        input.className = 'task-name-input';
+        input.value = currentName;
+        
+        cell.innerHTML = '';
+        cell.appendChild(input);
+        input.focus();
+        input.select();
+        
+        input.addEventListener('keydown', function(event) {
+            if (event.key === 'Enter') {
+                const newName = input.value.trim();
+                if (newName === '') {
+                    showError('任务名称不能为空');
+                    restoreTaskNameDisplay(cell, currentName, row);
+                    return;
+                }
+                
+                updateTaskName(taskIndex, newName);
+            } else if (event.key === 'Escape') {
+                restoreTaskNameDisplay(cell, currentName, row);
+            }
+        });
+        
+        input.addEventListener('blur', function() {
+            setTimeout(() => {
+                if (cell.contains(input)) {
+                    restoreTaskNameDisplay(cell, currentName, row);
+                }
+            }, 100);
+        });
+    }
+
+    /**
+     * 恢复任务名称显示
+     */
+    function restoreTaskNameDisplay(cell, name, row) {
+        cell.innerHTML = `<span class="content bold task-name-editable">${name}</span>`;
+    }
+
+    /**
+     * 更新任务名称
+     */
+    async function updateTaskName(taskIndex, newName) {
+        try {
+            await updateTask(taskIndex, { name: newName });
+        } catch (error) {
+            showError('更新任务名称失败');
+        }
+    }
+    
+    // ============================================
+    // 新增任务功能
+    // ============================================
+    
+    /**
+     * 添加新任务
+     */
+    async function addNewTask() {
+        if (!canAddNewTask()) {
+            showError('无法添加新任务：时间已排满到24:00');
+            return;
+        }
+        
+        const newTaskData = {
+            duration: 10,
+            name: "新任务"
+        };
+        
+        try {
+            await addTaskToServer(newTaskData);
+        } catch (error) {
+            showError('添加任务失败');
+        }
+    }
+    
+    // ============================================
+    // 整体开始时间编辑功能
+    // ============================================
+    
+    /**
+     * 应用新的整体开始时间
+     */
+    async function applyOverallStartTime() {
+        const newTimeStr = overallStartTimeInput.value;
+        if (!newTimeStr) return;
+        
+        const newStartMinutes = timeToMinutes(newTimeStr);
+        
+        if (newStartMinutes < 0 || newStartMinutes >= 1440) {
+            showError('开始时间必须在00:00到23:59之间');
+            overallStartTimeInput.value = minutesToTime(overallStartTimeMinutes);
+            return;
+        }
+        
+        overallStartTimeMinutes = newStartMinutes;
+        
+        if (!validateSchedule()) {
+            showError('调整开始时间会导致最后一个任务超过24:00');
+            overallStartTimeInput.value = minutesToTime(overallStartTimeMinutes);
+            return;
+        }
+        
+        scheduleData.overall_start = newTimeStr;
+        updateAllDisplays();
+        
+        showError(`整体开始时间已调整为 ${newTimeStr}`);
+        
+        // 更新服务器
+        try {
+            await fetchFromServer('api/schedule/update_overall_start', 'POST', {
+                overall_start: newTimeStr
+            });
+        } catch (error) {
+            console.error('更新服务器整体开始时间失败:', error);
+        }
+    }
+    
+    // ============================================
+    // 进度条和实时更新功能
+    // ============================================
+    
+    /**
+     * 设置容器宽度变量
+     */
+    function setContainerWidthVariable() {
+        if (!progressBarContainer) return;
+        const width = document.querySelector('.schedule-container').offsetWidth;
+        progressBarContainer.style.setProperty('--container-width', `${width}px`);
+    }
+    
+    /**
+     * 更新进度条和当前任务高亮
+     */
+    function updateProgressBar() {
+        const { totalMinutes: currentMinutes, timeStr } = getCurrentBeijingTime();
+        timeDisplay.textContent = timeStr;
+
+        let currentTaskFound = false;
+        let progressPercentage = "0.000";
+        let currentTaskName = "无正在进行中的任务";
+        
+        // 检查是否在工作时间范围内
+        if (displayRows.length > 0) {
+            const earliestStart = displayRows[0].start;
+            const latestEnd = displayRows[displayRows.length - 1].end;
+            
+            if (currentMinutes < earliestStart || currentMinutes > latestEnd) {
+                // 不在工作时间
+                currentTaskName = "不在工作时间哦~";
+                progressPercentage = "0.000";
+                currentTaskFound = false;
+                
+                // 移除所有高亮
+                document.querySelectorAll('#schedule-body tr.task-row, #schedule-body tr.gap-row').forEach(row => {
+                    row.classList.remove('current-task');
+                });
+                
+                // 更新底部显示
+                const progressTitle = document.getElementById('progress-title');
+                progressTitle.textContent = `当前任务: ${currentTaskName}`;
+                progressBar.style.width = `${progressPercentage}%`;
+                percentageLabel.textContent = `${progressPercentage}%`;
+                updateCanvasProgressBars();
+                return;
+            }
+        }
+        
+        // 正常查找当前任务
+        document.querySelectorAll('#schedule-body tr.task-row, #schedule-body tr.gap-row').forEach(row => {
+            row.classList.remove('current-task');
+        });
+        
+        for (let i = 0; i < displayRows.length; i++) {
+            const item = displayRows[i];
+            const startMinutes = item.start;
+            const endMinutes = item.end;
+            
+            const { isCurrent, progress } = calculateTimeProgress(startMinutes, endMinutes, currentMinutes);
+
+            if (isCurrent && !currentTaskFound) {
+                currentTaskFound = true;
+                const rawPercentage = progress * 100;
+                progressPercentage = rawPercentage.toFixed(3);
+                currentTaskName = item.name;
+                
+                const row = document.querySelector(`tr[data-display-index="${i}"]`);
+                if (row) {
+                    row.classList.add('current-task');
+                }
+            }
+        }
+        
+        // 更新底部进度显示
+        const progressTitle = document.getElementById('progress-title');
+        const progressValue = parseFloat(progressPercentage);
+        
+        progressTitle.textContent = `当前任务: ${currentTaskName}`;
+        progressBar.style.width = `${progressPercentage}%`;
+        percentageLabel.textContent = `${progressPercentage}%`;
+
+        if (progressValue >= 99.999) {
+            percentageLabel.style.color = '#ffffff';
+        } else {
+            percentageLabel.style.color = '#333333';
+        }
+        
+        updateCanvasProgressBars();
+    }
+    
+    // ============================================
+    // 状态操作处理函数
+    // ============================================
+    
+    /**
+     * 开始任务处理
+     */
+    window.handleStartTask = function(taskIndex) {
+        startTask(taskIndex);
+    };
+    
+    /**
+     * 完成任务处理
+     */
+    window.handleCompleteTask = function(taskIndex) {
+        completeTask(taskIndex);
+    };
+    
+    /**
+     * 重置任务处理（双击恢复）
+     */
+    window.handleResetTask = function(taskIndex) {
+        resetTask(taskIndex);
+    };
+    
+    /**
+     * 打开详细描述对话框
+     */
+    window.handleOpenDesc = function(taskIndex, taskName) {
+        const task = scheduleData.tasks[taskIndex];
+        currentDescTaskIndex = taskIndex;
+        
+        descTextarea.value = task ? task.description : '';
+        descTitle.textContent = `详细描述 - ${taskName}`;
+        descDialog.style.display = 'flex';
+    };
+    
+    // ============================================
+    // 描述对话框处理
+    // ============================================
+    
+    /**
+     * 保存描述
+     */
+    async function saveDescriptionHandler() {
+        if (currentDescTaskIndex !== null) {
+            const description = descTextarea.value;
+            const success = await saveDescription(currentDescTaskIndex, description);
+            
+            if (success) {
+                descDialog.style.display = 'none';
+                currentDescTaskIndex = null;
+            }
+        }
+    }
+    
+    /**
+     * 取消描述编辑
+     */
+    function cancelDescriptionHandler() {
+        descDialog.style.display = 'none';
+        currentDescTaskIndex = null;
+    }
+    
+    // ============================================
+    // 自动状态检查
+    // ============================================
+    
+    /**
+     * 启动自动状态检查
+     */
+    function startAutoCheck() {
+        autoCheckInterval = setInterval(async () => {
+            if (isOperationInProgress) return;
+            
+            const currentTime = getCurrentBeijingTime().totalMinutes;
+            
+            for (let i = 0; i < scheduleData.tasks.length; i++) {
+                const task = scheduleData.tasks[i];
+                if (!task) continue;
+                
+                const displayItems = calculateDisplaySchedule();
+                const taskDisplay = displayItems.find(item => item.type === 'task' && item.taskIndex === i);
+                
+                if (!taskDisplay) continue;
+                
+                const taskEnd = taskDisplay.end;
+                
+                if (Math.abs(currentTime - taskEnd) < 0.5) {
+                    if (task.status === 'in_progress') {
+                        await completeTask(i);
+                    }
+                }
+            }
+        }, 30000);
+    }
+    
+    // ============================================
+    // 事件委托设置
+    // ============================================
+    
+    /**
+     * 设置事件委托
+     */
+    function setupEventDelegation() {
+        // 时长编辑双击事件
+        scheduleBody.addEventListener('dblclick', function(event) {
+            const target = event.target;
+            
+            let durationCell;
+            if (target.classList.contains('duration-editable')) {
+                durationCell = target.closest('td');
+            } else if (target.closest('.duration-editable')) {
+                durationCell = target.closest('td');
+            }
+            
+            if (durationCell) {
+                const row = durationCell.closest('tr');
+                if (row.id !== 'add-task-row' && row.id !== 'control-row' && 
+                    !row.classList.contains('gap-row') && row.dataset.taskIndex !== undefined) {
+                    makeDurationEditable(durationCell, row);
+                }
+            }
+            
+            let taskNameCell;
+            if (target.classList.contains('task-name-editable')) {
+                taskNameCell = target.closest('td');
+            } else if (target.closest('.task-name-editable')) {
+                taskNameCell = target.closest('td');
+            }
+            
+            if (taskNameCell) {
+                const row = taskNameCell.closest('tr');
+                if (row.id !== 'add-task-row' && row.id !== 'control-row' && 
+                    !row.classList.contains('gap-row') && row.dataset.taskIndex !== undefined) {
+                    makeTaskNameEditable(taskNameCell, row);
+                }
+            }
+        });
+        
+        // 添加按钮点击事件
+        addTaskRow.addEventListener('click', function() {
+            if (isOperationInProgress) {
+                showError('请等待上一个操作完成');
+                return;
+            }
+            addNewTask();
+        });
+        
+        // 整体开始时间输入框事件
+        overallStartTimeInput.addEventListener('change', applyOverallStartTime);
+        overallStartTimeInput.addEventListener('blur', applyOverallStartTime);
+        
+        // 确认对话框事件
+        confirmCancelBtn.addEventListener('click', function() {
+            confirmDialog.style.display = 'none';
+            pendingDeleteTaskIndex = null;
+        });
+        
+        confirmDeleteBtn.addEventListener('click', async function() {
+            if (pendingDeleteTaskIndex !== null) {
+                await deleteTask(pendingDeleteTaskIndex);
+                confirmDialog.style.display = 'none';
+                pendingDeleteTaskIndex = null;
+            }
+        });
+        
+        confirmDialog.addEventListener('click', function(event) {
+            if (event.target === confirmDialog) {
+                confirmDialog.style.display = 'none';
+                pendingDeleteTaskIndex = null;
+            }
+        });
+        
+        // 描述对话框事件
+        descSaveBtn.addEventListener('click', saveDescriptionHandler);
+        descCancelBtn.addEventListener('click', cancelDescriptionHandler);
+        
+        descDialog.addEventListener('click', function(event) {
+            if (event.target === descDialog) {
+                descDialog.style.display = 'none';
+                currentDescTaskIndex = null;
+            }
+        });
+    }
+    
+    // ============================================
+    // 初始化
+    // ============================================
+    
+    /**
+     * 初始化应用
+     */
+    async function initialize() {
+        try {
+            await refreshSchedule();
+        } catch (error) {
+            console.error('初始化失败:', error);
+        }
+        
+        setupEventDelegation();
+        setContainerWidthVariable();
+        startAutoCheck();
+        
+        setInterval(function() {
+            updateProgressBar();
+        }, 100);
+        
+        updateProgressBar();
+        
+        window.addEventListener('resize', function() {
+            setContainerWidthVariable();
+            updateCanvasProgressBars();
+        });
+    }
+
+    // 启动应用
+    window.onload = initialize;
+
+</script>
+</body>
+</html>

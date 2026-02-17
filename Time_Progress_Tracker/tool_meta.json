@@ -1,0 +1,7 @@
+{
+    "name_zh": "时间进度追踪器",
+    "icon": "icon.svg",
+    "icon_padding": 8,
+    "icon_color": "#ffffff",
+    "description": "追踪和管理时间进度"
+}

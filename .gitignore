@@ -1,0 +1,52 @@
+# Python 缓存
+__pycache__/
+*.pyc
+*.pyo
+*.pyd
+.pytest_cache/
+*.egg-info/
+
+# 虚拟环境
+venv/
+env/
+ENV/
+
+# Node.js 依赖
+node_modules/
+npm-debug.log*
+yarn-debug.log*
+yarn-error.log*
+package-lock.json  # 如果团队统一用 npm，可以保留；如果用 yarn，可保留 yarn.lock
+
+# 构建输出
+dist/
+build/
+*.egg-info/
+
+# IDE 配置（如果你想共享 IDE 配置可以移除）
+.vscode/
+.idea/
+*.swp
+*.swo
+*~
+
+# 日志文件
+*.log
+
+# 操作系统隐藏文件
+.DS_Store
+Thumbs.db
+
+# 你的项目特定数据目录（如果 data 下是用户生成内容或临时文件，建议忽略）
+data/
+# 但如果 data 下有必须保留的默认配置文件，可以取消下一行注释并调整路径
+# !data/initial_config.json
+
+# Vue/前端相关
+.vite/
+.vue-global-types/
+*.tsbuildinfo
+
+# 忽略所有以点开头的文件夹，但排除 .git
+.*/
+!.git/

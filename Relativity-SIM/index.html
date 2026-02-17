@@ -1,0 +1,283 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>狭义相对论时间膨胀模拟器 (高精度UI)</title>
+    <link rel="stylesheet" href="css/style.css">
+</head>
+<body>
+
+<header>
+    <h1>高精度相对论模拟器</h1>
+    <div style="font-size: 0.8em; color: #666; margin-top: 5px;">Powered by String Precision (66位小数精度系统)</div>
+</header>
+
+<div class="container">
+    <!-- 左侧控制面板 -->
+    <div class="panel">
+        <div class="control-group">
+            <label>总行程 (光年) <span class="stat-unit">Light Years</span></label>
+            <input type="number" id="inputDistance" value="4.22" step="0.1">
+            <div style="font-size: 0.7em; color: #666; margin-top:5px;">例如：比邻星 4.22 光年</div>
+        </div>
+
+        <div class="control-group">
+            <label>飞船速度 (V/c)</label>
+            <!-- 粗调滑块和实时显示值 -->
+            <div style="display:flex; align-items:center; gap:10px;">
+                <input type="range" id="sliderSpeed" min="0.01" max="0.99" step="0.01" value="0.5" style="flex-grow:1;">
+                <!-- 实时显示速度 (显示为百分比，两位小数) -->
+                <span id="speedDisplayValue" style="min-width: 80px; text-align: right; color: var(--accent-color); font-family: var(--font-mono); word-break: break-all;">50.00%</span>
+            </div>
+            
+            <!-- 高精度调节区 - 始终显示 -->
+            <div id="fineSliderContainer">
+                <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 8px;">
+                    <label style="margin: 0; font-size: 0.85em;">高精度调节</label>
+                </div>
+                <!-- 精细调节滑块 -->
+                <input type="range" id="sliderFine" min="0" max="577" step="1" value="0" style="width: 100%; opacity: 1; pointer-events: auto;">
+                <div style="display:flex; justify-content:space-between; font-size: 0.7em; color: #888; margin-top: 5px;">
+                    <span>当前位置: <span id="fineSliderPosition">0</span>/577</span>
+                    <span>序列长度: 578个点</span>
+                </div>
+                <div class="precision-tools" style="margin-top: 10px;">
+                    <button class="mini-btn" id="btnMaxPrecision" style="opacity: 1;">设为最大精度</button>
+                    <button class="mini-btn" id="btnResetFine" style="opacity: 1;">重置精细调节</button>
+                </div>
+            </div>
+
+            <div id="gammaPreview" style="font-size: 0.7em; margin-top: 5px; color: #888;">当前 γ ≈ 1.15</div>
+        </div>
+
+        <!-- 8x8 精度网格 - 整体可点击 -->
+        <div id="precisionGrid">
+            <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 8px;">
+                <div style="font-size: 0.85em; color: #aaa; font-weight: bold;">精确校准网格</div>
+                <div style="font-size: 0.7em; color: #888;">点击或滚轮调整最末尾非零位</div>
+            </div>
+            <div id="precisionGridContainer">
+                <!-- 64个格子由JS生成 -->
+            </div>
+            <div style="font-size: 0.7em; color: #666; margin-top: 8px; text-align: center;">
+                每个格子对应小数点后第<span id="cellStartIndex">3</span>-<span id="cellEndIndex">66</span>位，共64位
+            </div>
+        </div>
+        
+        <div class="control-group" style="margin-top: 25px;">
+            <label>模拟运行倍率 (1秒 = X <span id="timeUnitLabel">天</span>)</label>
+            <input type="range" id="sliderMultiplier" min="1" max="5000" step="1" value="1">
+            <div style="display:flex; justify-content:space-between; margin-top:5px;">
+                <span id="multiplierDisplay">1x (1秒 = 1天 地球时间)</span>
+                <span style="font-size:0.7em; color:#666;">
+                    倍率说明: 1x表示1秒 = 1<span id="selectedTimeUnit">天</span> × 倍率
+                </span>
+            </div>
+        </div>
+        
+        <!-- 时间单位控制 -->
+        <div class="control-group">
+            <label>时间单位</label>
+            <div class="single-select-container">
+                <div class="select-wrapper">
+                    <select id="timeUnitSelect">
+                        <option value="day">天</option>
+                        <option value="month">月</option>
+                        <option value="year">年</option>
+                    </select>
+                </div>
+            </div>
+            <!-- 关键修复：更新说明文本 -->
+            <div class="single-select-info">
+                <span class="conversion-info">单位定义: 1秒 = 1<span id="selectedTimeUnit">天</span> × 倍率</span>
+                <span class="conversion-info">转换系数: 1月 = 30.438天, 1年 = 365.256天</span>
+            </div>
+        </div>
+
+        <!-- 参考系切换开关 -->
+        <div class="control-group" id="referenceFrameControl">
+            <label>时间参考系</label>
+            <div class="reference-switch">
+                <div class="switch-option active" data-value="earth">
+                    地球参考系
+                </div>
+                <div class="switch-option" data-value="ship">
+                    飞船参考系
+                </div>
+            </div>
+            <div class="reference-explanation" id="referenceExplanation">
+                当前：1秒 = <span id="currentReference">地球</span>时间 × <span id="multiplierValue">1</span>
+            </div>
+        </div>
+
+        <div class="btn-group">
+            <button class="btn-primary" id="btnPlay" data-state="enabled">
+                <span class="btn-icon">▶</span>
+                <span class="btn-text">播放</span>
+            </button>
+            <button class="btn-secondary btn-disabled" id="btnPause" data-state="disabled">
+                <span class="btn-icon">⏸</span>
+                <span class="btn-text">暂停</span>
+            </button>
+            <button class="btn-danger" id="btnReset" data-state="enabled">
+                <span class="btn-icon">↺</span>
+                <span class="btn-text">重置时间</span>
+            </button>
+        </div>
+    </div>
+
+    <!-- 右侧可视区域 -->
+    <div class="canvas-container panel" style="padding:0; display: flex; flex-direction: column;">
+        <div style="flex: 1; position: relative;">
+            <canvas id="simCanvas"></canvas>
+            <!-- 运行时间显示 -->
+            <div id="runTimeDisplay" class="run-time-display" style="display: none;">
+                <span class="run-time-label">运行时间:</span>
+                <span class="run-time-value" id="runTimeValue">0.00</span>
+                <span>s</span>
+            </div>
+        </div>
+        <div class="progress-bar-container">
+            <div class="progress-bar-fill" id="progressBar"></div>
+        </div>
+
+        <!-- 数据统计区域 -->
+        <div class="stats-grid">
+            <div class="stat-item">
+                <div class="stat-label">
+                    地球经过时间
+                    <span class="reference-indicator earth"></span>
+                </div>
+                <div class="stat-value" id="dispEarthTime">0.000000</div>
+                <div class="stat-unit">
+                    时间单位: <span id="earthTimeUnit">天</span>
+                </div>
+                
+                <!-- 四个时间单位并列显示 -->
+                <div class="time-conversions">
+                    <div class="time-conversion-box">
+                        <div class="time-conversion-value" id="earthConvertYear">0.00</div>
+                        <div class="time-conversion-label">年</div>
+                    </div>
+                    <div class="time-conversion-box">
+                        <div class="time-conversion-value" id="earthConvertMonth">0.00</div>
+                        <div class="time-conversion-label">月</div>
+                    </div>
+                    <div class="time-conversion-box">
+                        <div class="time-conversion-value" id="earthConvertDay">0.00</div>
+                        <div class="time-conversion-label">天</div>
+                    </div>
+                    <div class="time-conversion-box">
+                        <div class="time-conversion-value" id="earthConvertHour">0.00</div>
+                        <div class="time-conversion-label">小时</div>
+                    </div>
+                </div>
+            </div>
+            
+            <div class="stat-item">
+                <div class="stat-label">
+                    飞船经过时间
+                    <span class="reference-indicator ship"></span>
+                </div>
+                <div class="stat-value" id="dispShipTime">0.000000</div>
+                <div class="stat-unit">
+                    时间单位: <span id="shipTimeUnit">天</span>
+                </div>
+                
+                <!-- 四个时间单位并列显示 -->
+                <div class="time-conversions">
+                    <div class="time-conversion-box">
+                        <div class="time-conversion-value" id="shipConvertYear">0.00</div>
+                        <div class="time-conversion-label">年</div>
+                    </div>
+                    <div class="time-conversion-box">
+                        <div class="time-conversion-value" id="shipConvertMonth">0.00</div>
+                        <div class="time-conversion-label">月</div>
+                    </div>
+                    <div class="time-conversion-box">
+                        <div class="time-conversion-value" id="shipConvertDay">0.00</div>
+                        <div class="time-conversion-label">天</div>
+                    </div>
+                    <div class="time-conversion-box">
+                        <div class="time-conversion-value" id="shipConvertHour">0.00</div>
+                        <div class="time-conversion-label">小时</div>
+                    </div>
+                </div>
+            </div>
+            
+            <div class="stat-item">
+                <div class="stat-label">行程进度</div>
+                <div class="stat-value" id="dispProgressPercent">0.000%</div>
+                <!-- 行程进度条 -->
+                <div class="journey-progress-container">
+                    <div class="journey-progress-fill"></div>
+                    <div class="journey-mask" id="journeyProgressMask" style="width: 100%;"></div>
+                    <div class="progress-ticks">
+                        <div class="progress-tick" style="left: 25%;"></div>
+                        <div class="progress-tick" style="left: 50%;"></div>
+                        <div class="progress-tick" style="left: 75%;"></div>
+                    </div>
+                </div>
+                <div class="stat-unit" id="dispDistance">0.000000 光年</div>
+            </div>
+            
+            <div class="stat-item">
+                <div class="stat-label">时间膨胀率 (γ 因子)</div>
+                <div class="stat-value">
+                    <span id="dispGammaRatio" class="gamma-display">1 : 1.15</span>
+                    <div id="dispGammaDecimal" class="stat-unit" style="margin-left: 0; font-size: 0.8em; color: #666; margin-top: 4px;">
+                        实际倍率: <span id="gammaValue" class="gamma-value">1.1547</span>
+                        <!-- 新增：γ因子换算描述 -->
+                        <div id="gammaConversionDesc" style="margin-top: 2px; font-size: 0.7em; color: #888; font-style: italic;">
+                            相当于倍率: 飞船上的1日等于xx年
+                        </div>
+                    </div>
+                </div>
+            </div>
+            
+            <!-- 速度进度条 -->
+            <div class="stat-item" style="grid-column: span 2; padding: 15px;">
+                <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 8px;">
+                    <span class="stat-label">当前速度 (c)</span>
+                    <span id="speedDisplay" style="font-family: var(--font-mono); color: var(--accent-color);">0.5000</span>
+                </div>
+                
+                <!-- 进度条容器 -->
+                <div class="log-progress-container">
+                    <!-- 完整的渐变背景 -->
+                    <div class="progress-gradient-bg"></div>
+                    
+                    <!-- 遮罩层，控制显示多少渐变 -->
+                    <div class="progress-mask" id="logProgressMask" style="width: 50%;"></div>
+                    
+                    <!-- 刻度标记 -->
+                    <div style="position: absolute; top: 0; left: 0; width: 100%; height: 100%; pointer-events: none;">
+                        <div style="position: absolute; left: 10%; top: 0; height: 100%; width: 1px; background: rgba(255,255,255,0.3);"></div>
+                        <div style="position: absolute; left: 30%; top: 0; height: 100%; width: 1px; background: rgba(255,255,255,0.3);"></div>
+                        <div style="position: absolute; left: 50%; top: 0; height: 100%; width: 1px; background: rgba(255,255,255,0.3);"></div>
+                        <div style="position: absolute; left: 70%; top: 0; height: 100%; width: 1px; background: rgba(255,255,255,0.3);"></div>
+                        <div style="position: absolute; left: 90%; top: 0; height: 100%; width: 1px; background: rgba(255,255,255,0.3);"></div>
+                    </div>
+                </div>
+                
+                <div style="display: flex; justify-content: space-between; margin-top: 5px; font-size: 0.7em; color: #888;">
+                    <span>0.01【1%】</span>
+                    <span>0.5【5%】</span>
+                    <span>0.99【99%】</span>
+                    <span>0.999...</span>
+                    <span>0.9999...[64位]</span>
+                </div>
+                
+                <div id="fullPrecisionDisplay" style="font-size: 0.7em; color: #888; margin-top: 8px; word-break: break-all; font-family: var(--font-mono);">
+                    完整值: 0.500000000000000000000000000000000000000000000000000000000000000000
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/decimal.js/10.4.3/decimal.min.js"></script>
+<script src="js/simulation.js" defer></script>
+<script src="js/main.js" defer></script>
+</body>
+</html>
