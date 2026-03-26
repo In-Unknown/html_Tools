@@ -1,0 +1,882 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+    <title>跨端中转站</title>
+    <style>
+        :root {
+            /* 采用高级的 Slate 色系配合 Indigo 强调色 */
+            --bg-body: #F8FAFC;
+            --bg-card: #FFFFFF;
+            --text-primary: #0F172A;
+            --text-secondary: #475569;
+            --text-tertiary: #94A3B8;
+            --border-light: #E2E8F0;
+            --border-hover: #CBD5E1;
+            --accent: #6366F1;
+            --accent-hover: #4F46E5;
+            --accent-bg: #EEF2FF;
+            --danger: #EF4444;
+            --danger-bg: #FEF2F2;
+            --success: #10B981;
+            
+            --radius-sm: 8px;
+            --radius-md: 12px;
+            --radius-lg: 24px;
+            
+            --shadow-sm: 0 1px 2px 0 rgba(0, 0, 0, 0.05);
+            --shadow-md: 0 4px 6px -1px rgba(0, 0, 0, 0.05), 0 2px 4px -2px rgba(0, 0, 0, 0.05);
+            --shadow-xl: 0 20px 25px -5px rgba(0, 0, 0, 0.05), 0 8px 10px -6px rgba(0, 0, 0, 0.01);
+            
+            --font-stack: "Inter", -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Helvetica, Arial, sans-serif;
+        }
+
+        * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+            -webkit-tap-highlight-color: transparent;
+        }
+
+        body {
+            font-family: var(--font-stack);
+            background-color: var(--bg-body);
+            color: var(--text-primary);
+            line-height: 1.6;
+            min-height: 100vh;
+            display: flex;
+            justify-content: center;
+            padding: 40px 20px;
+            -webkit-font-smoothing: antialiased;
+        }
+
+        .app-container {
+            width: 100%;
+            max-width: 640px;
+            background: var(--bg-card);
+            border-radius: var(--radius-lg);
+            border: 1px solid rgba(226, 232, 240, 0.8);
+            box-shadow: var(--shadow-xl);
+            overflow: hidden;
+            display: flex;
+            flex-direction: column;
+        }
+
+        /* 头部 */
+        .app-header {
+            padding: 32px 32px 24px;
+        }
+
+        .header-title {
+            display: flex;
+            align-items: center;
+            gap: 12px;
+            font-size: 20px;
+            font-weight: 600;
+            letter-spacing: -0.01em;
+            color: var(--text-primary);
+        }
+
+        .header-icon {
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            width: 36px;
+            height: 36px;
+            background: var(--accent-bg);
+            color: var(--accent);
+            border-radius: 10px;
+        }
+
+        .header-desc {
+            margin-top: 8px;
+            font-size: 14px;
+            color: var(--text-secondary);
+        }
+
+        /* 类 macOS 分段控制器 */
+        .segment-control {
+            margin: 0 32px 24px;
+            background: #F1F5F9;
+            padding: 4px;
+            border-radius: 14px;
+            display: flex;
+            position: relative;
+        }
+
+        .segment-btn {
+            flex: 1;
+            padding: 8px 0;
+            text-align: center;
+            font-size: 14px;
+            font-weight: 500;
+            color: var(--text-secondary);
+            cursor: pointer;
+            border: none;
+            background: transparent;
+            border-radius: 10px;
+            transition: all 0.25s cubic-bezier(0.4, 0, 0.2, 1);
+            position: relative;
+            z-index: 2;
+        }
+
+        .segment-btn:hover {
+            color: var(--text-primary);
+        }
+
+        .segment-btn.active {
+            color: var(--text-primary);
+            font-weight: 600;
+        }
+
+        .segment-indicator {
+            position: absolute;
+            top: 4px;
+            bottom: 4px;
+            width: calc(50% - 4px);
+            background: #FFFFFF;
+            border-radius: 10px;
+            box-shadow: 0 1px 3px rgba(0,0,0,0.08), 0 1px 2px rgba(0,0,0,0.04);
+            transition: transform 0.3s cubic-bezier(0.4, 0, 0.2, 1);
+            z-index: 1;
+        }
+
+        /* 视图容器 */
+        .view-container {
+            padding: 0 32px 32px;
+            position: relative;
+            min-height: 400px;
+        }
+
+        .view {
+            display: none;
+            animation: slideUp 0.4s cubic-bezier(0.16, 1, 0.3, 1);
+        }
+
+        .view.active {
+            display: block;
+        }
+
+        @keyframes slideUp {
+            from { opacity: 0; transform: translateY(8px); }
+            to { opacity: 1; transform: translateY(0); }
+        }
+
+        /* 优雅的上传区 */
+        .upload-zone {
+            border: 1.5px dashed var(--border-light);
+            border-radius: var(--radius-md);
+            padding: 40px 24px;
+            text-align: center;
+            background: #F8FAFC;
+            cursor: pointer;
+            transition: all 0.2s ease;
+            position: relative;
+        }
+
+        .upload-zone:hover, .upload-zone.dragover {
+            border-color: var(--accent);
+            background: var(--accent-bg);
+        }
+
+        .upload-zone-content {
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            gap: 12px;
+            transition: opacity 0.2s;
+        }
+
+        .upload-icon {
+            color: var(--text-tertiary);
+            transition: color 0.2s;
+        }
+        .upload-zone:hover .upload-icon {
+            color: var(--accent);
+        }
+
+        .upload-title {
+            font-size: 15px;
+            font-weight: 500;
+            color: var(--text-primary);
+        }
+
+        .upload-subtitle {
+            font-size: 13px;
+            color: var(--text-tertiary);
+        }
+
+        /* 进度条组件 (取代粗暴的遮罩) */
+        .progress-container {
+            position: absolute;
+            inset: 0;
+            background: #FFFFFF;
+            border-radius: var(--radius-md);
+            display: flex;
+            flex-direction: column;
+            justify-content: center;
+            padding: 0 32px;
+            opacity: 0;
+            pointer-events: none;
+            transition: opacity 0.3s;
+            border: 1px solid var(--border-light);
+            box-shadow: var(--shadow-sm);
+        }
+
+        .progress-container.active {
+            opacity: 1;
+            pointer-events: auto;
+            z-index: 10;
+        }
+
+        .progress-header {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            margin-bottom: 12px;
+            font-size: 14px;
+            font-weight: 500;
+        }
+
+        .progress-filename {
+            color: var(--text-primary);
+            white-space: nowrap;
+            overflow: hidden;
+            text-overflow: ellipsis;
+            max-width: 70%;
+        }
+
+        .progress-percent {
+            color: var(--accent);
+            font-variant-numeric: tabular-nums;
+        }
+
+        .progress-track {
+            height: 6px;
+            background: #F1F5F9;
+            border-radius: 3px;
+            overflow: hidden;
+        }
+
+        .progress-fill {
+            height: 100%;
+            width: 0%;
+            background: var(--accent);
+            border-radius: 3px;
+            transition: width 0.1s linear;
+        }
+
+        #fileInput { display: none; }
+
+        /* 文件列表区 */
+        .section-header {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            margin: 32px 0 16px;
+        }
+
+        .section-title {
+            font-size: 15px;
+            font-weight: 600;
+            color: var(--text-primary);
+        }
+
+        .file-list {
+            display: flex;
+            flex-direction: column;
+            gap: 8px;
+        }
+
+        .file-item {
+            display: flex;
+            align-items: center;
+            justify-content: space-between;
+            padding: 12px 16px;
+            border-radius: var(--radius-md);
+            border: 1px solid transparent;
+            transition: all 0.2s ease;
+            group: item;
+        }
+
+        .file-item:hover {
+            background: #F8FAFC;
+            border-color: var(--border-light);
+        }
+
+        .file-info {
+            display: flex;
+            align-items: center;
+            gap: 16px;
+            min-width: 0; /* 必须，为了溢出隐藏 */
+        }
+
+        .file-icon {
+            color: var(--text-tertiary);
+        }
+
+        .file-details {
+            display: flex;
+            flex-direction: column;
+            min-width: 0;
+        }
+
+        .file-name {
+            font-size: 14px;
+            font-weight: 500;
+            color: var(--text-primary);
+            white-space: nowrap;
+            overflow: hidden;
+            text-overflow: ellipsis;
+        }
+
+        .file-meta {
+            font-size: 12px;
+            color: var(--text-tertiary);
+            margin-top: 2px;
+        }
+
+        .action-btn {
+            padding: 8px;
+            color: var(--text-tertiary);
+            background: transparent;
+            border: none;
+            border-radius: 8px;
+            cursor: pointer;
+            transition: all 0.2s;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+        }
+
+        .action-btn:hover {
+            color: var(--danger);
+            background: var(--danger-bg);
+        }
+
+        .action-btn.download-btn:hover {
+            color: var(--accent);
+            background: var(--accent-bg);
+        }
+
+        /* 剪切板区 */
+        .clipboard-display {
+            background: #F8FAFC;
+            border: 1px solid var(--border-light);
+            border-radius: var(--radius-md);
+            padding: 20px;
+            margin-bottom: 24px;
+            position: relative;
+        }
+
+        .clipboard-text {
+            font-family: "SFMono-Regular", Consolas, "Liberation Mono", Menlo, monospace;
+            font-size: 13px;
+            color: var(--text-primary);
+            line-height: 1.6;
+            min-height: 48px;
+            max-height: 200px;
+            overflow-y: auto;
+            white-space: pre-wrap;
+            word-break: break-all;
+        }
+
+        .clipboard-text.empty {
+            color: var(--text-tertiary);
+            font-style: italic;
+            font-family: inherit;
+        }
+
+        textarea.elegant-input {
+            width: 100%;
+            height: 120px;
+            padding: 16px;
+            background: #FFFFFF;
+            border: 1px solid var(--border-light);
+            border-radius: var(--radius-md);
+            font-family: var(--font-stack);
+            font-size: 14px;
+            color: var(--text-primary);
+            resize: vertical;
+            transition: all 0.2s;
+            margin-bottom: 16px;
+            box-shadow: var(--shadow-sm);
+        }
+
+        textarea.elegant-input::placeholder {
+            color: var(--text-tertiary);
+        }
+
+        textarea.elegant-input:focus {
+            outline: none;
+            border-color: var(--accent);
+            box-shadow: 0 0 0 3px rgba(99, 102, 241, 0.15);
+        }
+
+        /* 按钮体系 */
+        .btn-group {
+            display: flex;
+            gap: 12px;
+        }
+
+        .btn {
+            display: inline-flex;
+            align-items: center;
+            justify-content: center;
+            gap: 8px;
+            padding: 10px 18px;
+            font-size: 14px;
+            font-weight: 500;
+            border-radius: var(--radius-sm);
+            border: 1px solid transparent;
+            cursor: pointer;
+            transition: all 0.2s ease;
+            user-select: none;
+        }
+
+        .btn:active {
+            transform: scale(0.97);
+        }
+
+        .btn-primary {
+            background: var(--accent);
+            color: white;
+            box-shadow: 0 1px 2px rgba(0,0,0,0.1), inset 0 1px 0 rgba(255,255,255,0.1);
+        }
+
+        .btn-primary:hover {
+            background: var(--accent-hover);
+            box-shadow: 0 4px 6px -1px rgba(99, 102, 241, 0.2);
+        }
+
+        .btn-outline {
+            background: #FFFFFF;
+            color: var(--text-secondary);
+            border-color: var(--border-light);
+            box-shadow: var(--shadow-sm);
+        }
+
+        .btn-outline:hover {
+            color: var(--text-primary);
+            border-color: var(--border-hover);
+            background: #F8FAFC;
+        }
+
+        /* Toast 提示框 */
+        #toast {
+            position: fixed;
+            bottom: 32px;
+            left: 50%;
+            transform: translateX(-50%) translateY(20px);
+            background: #1E293B;
+            color: white;
+            padding: 12px 24px;
+            border-radius: 100px;
+            font-size: 14px;
+            font-weight: 500;
+            opacity: 0;
+            pointer-events: none;
+            transition: all 0.4s cubic-bezier(0.16, 1, 0.3, 1);
+            z-index: 1000;
+            box-shadow: 0 10px 15px -3px rgba(0,0,0,0.1);
+            display: flex;
+            align-items: center;
+            gap: 8px;
+        }
+
+        #toast.show {
+            transform: translateX(-50%) translateY(0);
+            opacity: 1;
+        }
+
+        /* 移动端细微调整 */
+        @media (max-width: 600px) {
+            body { padding: 16px; align-items: flex-start; }
+            .app-container { border-radius: 20px; }
+            .app-header { padding: 24px 24px 20px; }
+            .segment-control { margin: 0 24px 24px; }
+            .view-container { padding: 0 24px 24px; }
+            .btn-group { flex-direction: column; }
+            .btn { width: 100%; }
+        }
+    </style>
+</head>
+<body>
+
+    <div class="app-container">
+        <!-- 头部区 -->
+        <header class="app-header">
+            <div class="header-title">
+                <div class="header-icon">
+                    <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M21 16V8a2 2 0 0 0-1-1.73l-7-4a2 2 0 0 0-2 0l-7 4A2 2 0 0 0 3 8v8a2 2 0 0 0 1 1.73l7 4a2 2 0 0 0 2 0l7-4A2 2 0 0 0 21 16z"></path><polyline points="3.27 6.96 12 12.01 20.73 6.96"></polyline><line x1="12" y1="22.08" x2="12" y2="12"></line></svg>
+                </div>
+                中转控制台
+            </div>
+            <div class="header-desc">在你的设备间优雅地同步文件与文本。</div>
+        </header>
+
+        <!-- 分段选择器 -->
+        <div class="segment-control" id="tabs">
+            <div class="segment-indicator" id="segmentIndicator"></div>
+            <button class="segment-btn active" data-target="upload-view">文件传输</button>
+            <button class="segment-btn" data-target="clipboard-view">剪切板同步</button>
+        </div>
+
+        <div class="view-container">
+            <!-- 视图 1：文件 -->
+            <div class="view active" id="upload-view">
+                <div class="upload-zone" id="uploadZone">
+                    <div class="upload-zone-content">
+                        <svg class="upload-icon" width="32" height="32" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"></path><polyline points="17 8 12 3 7 8"></polyline><line x1="12" y1="3" x2="12" y2="15"></line></svg>
+                        <div class="upload-title">点击或拖拽文件至此处</div>
+                        <div class="upload-subtitle">支持任意类型文件，安全存储于本地</div>
+                    </div>
+                    <input type="file" id="fileInput">
+                    
+                    <!-- 优雅进度条 -->
+                    <div class="progress-container" id="progressContainer">
+                        <div class="progress-header">
+                            <span class="progress-filename" id="progressName">filename.zip</span>
+                            <span class="progress-percent" id="progressPercent">0%</span>
+                        </div>
+                        <div class="progress-track">
+                            <div class="progress-fill" id="progressBar"></div>
+                        </div>
+                    </div>
+                </div>
+
+                <div class="section-header">
+                    <div class="section-title">本地文件库</div>
+                    <button class="action-btn" onclick="loadFiles()" title="刷新列表">
+                        <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polyline points="23 4 23 10 17 10"></polyline><path d="M20.49 15a9 9 0 1 1-2.12-9.36L23 10"></path></svg>
+                    </button>
+                </div>
+                <div class="file-list" id="fileList">
+                    <!-- JS 渲染 -->
+                </div>
+            </div>
+
+            <!-- 视图 2：剪切板 -->
+            <div class="view" id="clipboard-view">
+                <div class="section-header" style="margin-top:0;">
+                    <div class="section-title">服务端当前内容</div>
+                    <div style="display: flex; gap: 8px;">
+                        <button class="action-btn" id="copyToLocalBtn" title="复制到本机">
+                            <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"></rect><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"></path></svg>
+                        </button>
+                        <button class="action-btn" id="refreshClipboardBtn" title="刷新内容">
+                            <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polyline points="23 4 23 10 17 10"></polyline><path d="M20.49 15a9 9 0 1 1-2.12-9.36L23 10"></path></svg>
+                        </button>
+                    </div>
+                </div>
+                <div class="clipboard-display">
+                    <div id="currentClipboard" class="clipboard-text empty">获取中...</div>
+                </div>
+
+                <div class="section-title" style="margin-bottom: 12px;">写入新内容</div>
+                <textarea class="elegant-input" id="clipboardInput" placeholder="输入你想推送到服务器剪切板的内容..."></textarea>
+                <div class="btn-group">
+                    <button class="btn btn-primary" id="setClipboardBtn">
+                        <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><line x1="22" y1="2" x2="11" y2="13"></line><polygon points="22 2 15 22 11 13 2 9 22 2"></polygon></svg>
+                        推送到服务端
+                    </button>
+                    <button class="btn btn-outline" id="clearInputBtn">清空输入框</button>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- 高级感 Toast -->
+    <div id="toast">
+        <svg id="toastIcon" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"></svg>
+        <span id="toastMsg">操作成功</span>
+    </div>
+
+    <script>
+        document.addEventListener('DOMContentLoaded', function() {
+            // --- Toast 系统 ---
+            let toastTimeout;
+            const toast = document.getElementById('toast');
+            const toastMsg = document.getElementById('toastMsg');
+            const toastIcon = document.getElementById('toastIcon');
+            
+            const icons = {
+                success: '<path d="M22 11.08V12a10 10 0 1 1-5.93-9.14"></path><polyline points="22 4 12 14.01 9 11.01"></polyline>',
+                error: '<circle cx="12" cy="12" r="10"></circle><line x1="12" y1="8" x2="12" y2="12"></line><line x1="12" y1="16" x2="12.01" y2="16"></line>'
+            };
+
+            function showToast(message, type = 'success') {
+                toastMsg.textContent = message;
+                toastIcon.innerHTML = icons[type] || icons.success;
+                toastIcon.style.color = type === 'error' ? '#FCA5A5' : '#86EFAC';
+                
+                toast.classList.add('show');
+                clearTimeout(toastTimeout);
+                toastTimeout = setTimeout(() => toast.classList.remove('show'), 3000);
+            }
+
+            // --- 分段选择器动画与切换 ---
+            const segmentBtns = document.querySelectorAll('.segment-btn');
+            const indicator = document.getElementById('segmentIndicator');
+            const views = document.querySelectorAll('.view');
+
+            function updateIndicator(btn) {
+                const index = Array.from(segmentBtns).indexOf(btn);
+                indicator.style.transform = `translateX(${index * 100}%)`;
+            }
+
+            segmentBtns.forEach(btn => {
+                btn.addEventListener('click', function() {
+                    segmentBtns.forEach(b => b.classList.remove('active'));
+                    this.classList.add('active');
+                    updateIndicator(this);
+
+                    const target = this.dataset.target;
+                    views.forEach(v => {
+                        v.classList.remove('active');
+                        if(v.id === target) v.classList.add('active');
+                    });
+
+                    if (target === 'upload-view') loadFiles();
+                    if (target === 'clipboard-view') refreshClipboard();
+                });
+            });
+
+            // --- 文件上传逻辑 ---
+            const uploadZone = document.getElementById('uploadZone');
+            const fileInput = document.getElementById('fileInput');
+            const progressContainer = document.getElementById('progressContainer');
+            const progressBar = document.getElementById('progressBar');
+            const progressPercent = document.getElementById('progressPercent');
+            const progressName = document.getElementById('progressName');
+
+            uploadZone.addEventListener('click', () => {
+                if(!progressContainer.classList.contains('active')) fileInput.click();
+            });
+
+            uploadZone.addEventListener('dragover', (e) => {
+                e.preventDefault();
+                if(!progressContainer.classList.contains('active')) uploadZone.classList.add('dragover');
+            });
+
+            uploadZone.addEventListener('dragleave', () => uploadZone.classList.remove('dragover'));
+
+            uploadZone.addEventListener('drop', (e) => {
+                e.preventDefault();
+                uploadZone.classList.remove('dragover');
+                if (e.dataTransfer.files.length > 0) uploadFile(e.dataTransfer.files[0]);
+            });
+
+            fileInput.addEventListener('change', (e) => {
+                if (e.target.files.length > 0) uploadFile(e.target.files[0]);
+            });
+
+            function uploadFile(file) {
+                if (!file) return;
+
+                const formData = new FormData();
+                formData.append('file', file);
+
+                // UI 切入上传状态
+                progressName.textContent = file.name;
+                progressBar.style.width = '0%';
+                progressPercent.textContent = '0%';
+                progressContainer.classList.add('active');
+
+                const xhr = new XMLHttpRequest();
+                
+                xhr.upload.addEventListener('progress', (e) => {
+                    if (e.lengthComputable) {
+                        const percent = Math.round((e.loaded / e.total) * 100);
+                        progressBar.style.width = percent + '%';
+                        progressPercent.textContent = percent + '%';
+                    }
+                });
+
+                xhr.addEventListener('load', () => {
+                    setTimeout(() => progressContainer.classList.remove('active'), 500); // 延迟消失让用户看到 100%
+                    fileInput.value = '';
+                    
+                    if (xhr.status === 200) {
+                        try {
+                            const result = JSON.parse(xhr.responseText);
+                            if (result.success) {
+                                showToast('文件已安全保存');
+                                loadFiles();
+                            } else showToast(result.error || '上传失败', 'error');
+                        } catch(e) { showToast('服务端响应异常', 'error'); }
+                    } else showToast('网络连接失败', 'error');
+                });
+
+                xhr.addEventListener('error', () => {
+                    progressContainer.classList.remove('active');
+                    fileInput.value = '';
+                    showToast('传输意外中断', 'error');
+                });
+
+                xhr.open('POST', 'api/upload', true);
+                xhr.send(formData);
+            }
+
+            // --- 文件列表逻辑 ---
+            window.loadFiles = async function() {
+                const fileList = document.getElementById('fileList');
+                try {
+                    const response = await fetch('api/list_files');
+                    const result = await response.json();
+
+                    if (result.success) {
+                        if (result.files.length === 0) {
+                            fileList.innerHTML = `<div style="text-align:center; padding: 24px 0; color: var(--text-tertiary); font-size: 14px;">暂无文件，快去上传第一个文件吧</div>`;
+                            return;
+                        }
+                        
+                        result.files.sort((a, b) => b.modified - a.modified);
+
+                        fileList.innerHTML = result.files.map(file => `
+                            <div class="file-item">
+                                <div class="file-info">
+                                    <svg class="file-icon" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"><path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"></path><polyline points="14 2 14 8 20 8"></polyline><line x1="16" y1="13" x2="8" y2="13"></line><line x1="16" y1="17" x2="8" y2="17"></line><polyline points="10 9 9 9 8 9"></polyline></svg>
+                                    <div class="file-details">
+                                        <div class="file-name" title="${escapeHtml(file.name)}">${escapeHtml(file.name)}</div>
+                                        <div class="file-meta">${formatFileSize(file.size)}</div>
+                                    </div>
+                                </div>
+                                <div style="display: flex; gap: 8px;">
+                                    <button class="action-btn download-btn" onclick="downloadFile('${escapeHtml(file.name)}')" title="下载文件">
+                                        <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"></path><polyline points="7 10 12 15 17 10"></polyline><line x1="12" y1="15" x2="12" y2="3"></line></svg>
+                                    </button>
+                                    <button class="action-btn" onclick="deleteFile('${escapeHtml(file.name)}')" title="删除文件">
+                                        <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polyline points="3 6 5 6 21 6"></polyline><path d="M19 6v14a2 2 0 0 1-2 2H7a2 2 0 0 1-2-2V6m3 0V4a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2"></path></svg>
+                                    </button>
+                                </div>
+                            </div>
+                        `).join('');
+                    }
+                } catch (error) {
+                    fileList.innerHTML = `<div style="color:var(--danger); padding: 16px 0; font-size: 14px;">列表加载失败，请检查网络</div>`;
+                }
+            }
+
+            window.downloadFile = function(filename) {
+                const link = document.createElement('a');
+                link.href = `api/download_file?filename=${encodeURIComponent(filename)}`;
+                link.download = filename;
+                document.body.appendChild(link);
+                link.click();
+                document.body.removeChild(link);
+                showToast('下载已开始');
+            }
+
+            window.deleteFile = async function(filename) {
+                if (!confirm(`确认要删除 "${filename}" 吗？此操作不可恢复。`)) return;
+
+                try {
+                    const response = await fetch('api/delete_file', {
+                        method: 'POST',
+                        headers: { 'Content-Type': 'application/json' },
+                        body: JSON.stringify({ filename: filename })
+                    });
+                    const result = await response.json();
+                    if (result.success) {
+                        showToast('文件已彻底删除');
+                        loadFiles();
+                    } else showToast(result.error, 'error');
+                } catch (error) { showToast('删除指令发送失败', 'error'); }
+            }
+
+            // --- 剪切板逻辑 ---
+            async function refreshClipboard() {
+                const display = document.getElementById('currentClipboard');
+                display.textContent = '正在同步数据...';
+                display.classList.add('empty');
+                
+                try {
+                    const response = await fetch('api/get_clipboard');
+                    const result = await response.json();
+
+                    if (result.success) {
+                        if (result.content) {
+                            display.textContent = result.content;
+                            display.classList.remove('empty');
+                        } else display.textContent = '服务端剪切板目前为空';
+                    } else display.textContent = `同步异常: ${result.error}`;
+                } catch (error) { display.textContent = '无法连接到服务端'; }
+            }
+
+            document.getElementById('setClipboardBtn').addEventListener('click', async function() {
+                const content = document.getElementById('clipboardInput').value;
+                if (!content) return showToast('不能推送空内容', 'error');
+
+                const originalText = this.innerHTML;
+                this.innerHTML = `<svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" style="animation: spin 1s linear infinite"><line x1="12" y1="2" x2="12" y2="6"></line><line x1="12" y1="18" x2="12" y2="22"></line><line x1="4.93" y1="4.93" x2="7.76" y2="7.76"></line><line x1="16.24" y1="16.24" x2="19.07" y2="19.07"></line><line x1="2" y1="12" x2="6" y2="12"></line><line x1="18" y1="12" x2="22" y2="12"></line><line x1="4.93" y1="19.07" x2="7.76" y2="16.24"></line><line x1="16.24" y1="7.76" x2="19.07" y2="4.93"></line></svg> 推送中...`;
+                
+                try {
+                    const response = await fetch('api/set_clipboard', {
+                        method: 'POST',
+                        headers: { 'Content-Type': 'application/json' },
+                        body: JSON.stringify({ content: content })
+                    });
+                    const result = await response.json();
+                    if (result.success) {
+                        showToast('内容已送达');
+                        document.getElementById('clipboardInput').value = '';
+                        refreshClipboard();
+                    } else showToast(result.error || '推送被拒', 'error');
+                } catch (error) { 
+                    showToast('网络错误', 'error'); 
+                } finally {
+                    this.innerHTML = originalText;
+                }
+            });
+
+            document.getElementById('copyToLocalBtn').addEventListener('click', async function() {
+                const text = document.getElementById('currentClipboard').textContent;
+                if (!text || document.getElementById('currentClipboard').classList.contains('empty')) return showToast('无有效内容可复制', 'error');
+                
+                try {
+                    await navigator.clipboard.writeText(text);
+                    showToast('已无缝复制到本机');
+                } catch (err) {
+                    const textArea = document.createElement("textarea");
+                    textArea.value = text;
+                    document.body.appendChild(textArea);
+                    textArea.select();
+                    try { document.execCommand('copy'); showToast('已无缝复制到本机'); } 
+                    catch (e) { showToast('浏览器权限拦截了复制', 'error'); }
+                    document.body.removeChild(textArea);
+                }
+            });
+
+            document.getElementById('refreshClipboardBtn').addEventListener('click', refreshClipboard);
+            document.getElementById('clearInputBtn').addEventListener('click', () => {
+                document.getElementById('clipboardInput').value = '';
+            });
+
+            // --- 实用工具 ---
+            function escapeHtml(text) {
+                const div = document.createElement('div');
+                div.textContent = text;
+                return div.innerHTML;
+            }
+
+            function formatFileSize(bytes) {
+                if (bytes === 0) return '0 B';
+                const k = 1024;
+                const sizes =['B', 'KB', 'MB', 'GB'];
+                const i = Math.floor(Math.log(bytes) / Math.log(k));
+                return parseFloat((bytes / Math.pow(k, i)).toFixed(1)) + ' ' + sizes[i];
+            }
+
+            // --- 全局动画 ---
+            const style = document.createElement('style');
+            style.innerHTML = `@keyframes spin { 100% { transform: rotate(360deg); } }`;
+            document.head.appendChild(style);
+
+            // 初始化加载
+            loadFiles();
+        });
+    </script>
+</body>
+</html>

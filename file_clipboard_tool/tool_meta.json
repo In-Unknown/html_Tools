@@ -1,0 +1,7 @@
+{
+  "name_zh": "文件下载和剪切板",
+  "icon": "icon.svg",
+  "icon_padding": 8,
+  "icon_color": "#ffffff",
+  "description": "上传文件到本地目录，管理剪切板内容"
+}
